@@ -9,7 +9,7 @@ local UIS = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 
 --// =========================
---// SAFE CAMERA LOAD
+--// SAFE CAMERA
 --// =========================
 
 local function GetCamera()
@@ -24,36 +24,10 @@ end
 local Camera = GetCamera()
 
 --// =========================
---// SAFE HTTP LOADER (Executor 유사 환경 대응)
+--// LOAD LUNA
 --// =========================
 
-local function httpGet(url)
-    if game.HttpGet then
-        return game:HttpGet(url)
-    elseif syn and syn.request then
-        return syn.request({Url=url, Method="GET"}).Body
-    elseif http_request then
-        return http_request({Url=url, Method="GET"}).Body
-    elseif request then
-        return request({Url=url, Method="GET"}).Body
-    else
-        error("No HTTP method available")
-    end
-end
-
---// =========================
---// SAFE LUNA LOAD
---// =========================
-
-local Luna
-local ok, err = pcall(function()
-    Luna = loadstring(httpGet("https://raw.nebulasoftworks.xyz/luna"))()
-end)
-
-if not ok or not Luna then
-    warn("Luna Load Failed:", err)
-    return
-end
+local Luna = loadstring(game:HttpGet("https://raw.nebulasoftworks.xyz/luna"))()
 
 --// =========================
 --// SETTINGS
@@ -64,45 +38,62 @@ local Settings = {
     AimPart = "Head",
     Smoothness = 0.15,
     FOV = 150,
-
     FOVColor = Color3.fromRGB(255,255,255),
     FOVRainbow = false,
-
     TeamCheck = false,
-    VisibleCheck = false,
-    WallCheck = false
+    VisibleCheck = false
 }
 
 --// =========================
---// UI
+--// WINDOW
 --// =========================
 
 local Window = Luna:CreateWindow({
     Name = "Program UI",
     Subtitle = "Integrated System",
+    LogoID = "6031097225",
+    LoadingEnabled = false,
     KeySystem = false
 })
 
-local MainTab = Window:CreateTab("Main")
+--// =========================
+--// TAB
+--// =========================
 
-MainTab:CreateToggle({
-    Name = "Aimbot",
+local Tabs = {
+    Main = Window:CreateTab({
+        Name = "Main",
+        Icon = "view_in_ar",
+        ImageSource = "Material",
+        ShowTitle = true
+    })
+}
+
+--// =========================
+--// UI ELEMENTS
+--// =========================
+
+Tabs.Main:CreateSection("Aimbot")
+
+Tabs.Main:CreateToggle({
+    Name = "Enable Aimbot",
     CurrentValue = false,
     Callback = function(v)
         Settings.Aimbot = v
     end
 })
 
-MainTab:CreateDropdown({
+Tabs.Main:CreateDropdown({
     Name = "Aim Part",
     Options = {"Head","HumanoidRootPart"},
     CurrentOption = "Head",
+    MultipleOptions = false,
     Callback = function(v)
         Settings.AimPart = v
     end
 })
 
-MainTab:CreateSlider({
+Tabs.Main:CreateSlider({
     Name = "Smoothness",
     Range = {0.01,1},
     Increment = 0.01,
@@ -112,7 +103,9 @@ MainTab:CreateSlider({
     end
 })
 
-MainTab:CreateSlider({
+Tabs.Main:CreateSection("FOV")
+
+Tabs.Main:CreateSlider({
     Name = "FOV Size",
     Range = {50,500},
     Increment = 1,
@@ -122,7 +115,7 @@ MainTab:CreateSlider({
     end
 })
 
-MainTab:CreateColorPicker({
+Tabs.Main:CreateColorPicker({
     Name = "FOV Color",
     Color = Settings.FOVColor,
     Callback = function(v)
@@ -130,7 +123,7 @@ MainTab:CreateColorPicker({
     end
 })
 
-MainTab:CreateToggle({
+Tabs.Main:CreateToggle({
     Name = "FOV Rainbow",
     CurrentValue = false,
     Callback = function(v)
@@ -138,7 +131,9 @@ MainTab:CreateToggle({
     end
 })
 
-MainTab:CreateToggle({
+Tabs.Main:CreateSection("Checks")
+
+Tabs.Main:CreateToggle({
     Name = "Team Check",
     CurrentValue = false,
     Callback = function(v)
@@ -146,7 +141,7 @@ MainTab:CreateToggle({
     end
 })
 
-MainTab:CreateToggle({
+Tabs.Main:CreateToggle({
     Name = "Visible Check",
     CurrentValue = false,
     Callback = function(v)
@@ -155,12 +150,12 @@ MainTab:CreateToggle({
 })
 
 --// =========================
---// FOV GUI (Drawing 제거)
+--// FOV GUI
 --// =========================
 
 local FOVGui = Instance.new("ScreenGui")
 FOVGui.ResetOnSpawn = false
-FOVGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+FOVGui.Parent = game:GetService("CoreGui")
 
 local FOVCircle = Instance.new("Frame")
 FOVCircle.AnchorPoint = Vector2.new(0.5,0.5)
@@ -172,10 +167,9 @@ UICorner.CornerRadius = UDim.new(1,0)
 
 local UIStroke = Instance.new("UIStroke", FOVCircle)
 UIStroke.Thickness = 2
-UIStroke.Color = Settings.FOVColor
 
 --// =========================
---// SAFE MOUSE POSITION
+--// UTIL
 --// =========================
 
 local function GetMousePos()
@@ -186,10 +180,6 @@ local function GetMousePos()
         return UIS:GetMouseLocation()
     end
 end
-
---// =========================
---// VISIBILITY CHECK
---// =========================
 
 local function IsVisible(part)
     if not Settings.VisibleCheck then return true end
@@ -211,10 +201,6 @@ local function IsVisible(part)
 
     return true
 end
-
---// =========================
---// TARGET FINDER
---// =========================
 
 local function GetClosestTarget()
     local closest = nil
@@ -265,7 +251,7 @@ RunService.RenderStepped:Connect(function()
         UIStroke.Color = Settings.FOVColor
     end
 
-    -- FOV 위치/크기
+    -- FOV
     local mousePos = GetMousePos()
     FOVCircle.Position = UDim2.fromOffset(mousePos.X, mousePos.Y)
     FOVCircle.Size = UDim2.fromOffset(Settings.FOV*2, Settings.FOV*2)
