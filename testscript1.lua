@@ -4,20 +4,19 @@
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
 local Lighting = game:GetService("Lighting")
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
 --====================================================
--- SETTINGS (모든 기능 값 관리)
+-- SETTINGS
 --====================================================
 local SETTINGS = {
 	Aimbot = false,
 	ESP = false,
 	FOV = 150,
-	Smoothness = 0.12
+	Smoothness = 0.15
 }
 
 --====================================================
@@ -31,21 +30,72 @@ gui.Parent = player:WaitForChild("PlayerGui")
 -- BLUR
 --====================================================
 local blur = Instance.new("BlurEffect")
-blur.Size = 12
+blur.Size = 0
 blur.Parent = Lighting
 
 --====================================================
--- MAIN WINDOW
+-- DRAG FUNCTION (재사용용)
 --====================================================
-local main = Instance.new("Frame", gui)
-main.Size = UDim2.new(0,420,0,450)
-main.Position = UDim2.new(0.5,-210,0.5,-225)
-main.BackgroundColor3 = Color3.fromRGB(20,20,30)
-main.BorderSizePixel = 0
-Instance.new("UICorner",main).CornerRadius = UDim.new(0,12)
+local function makeDraggable(frame, handle)
+
+	local dragging = false
+	local dragStart, startPos
+
+	handle.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragStart = input.Position
+			startPos = frame.Position
+		end
+	end)
+
+	UIS.InputChanged:Connect(function(input)
+		if dragging and (
+			input.UserInputType == Enum.UserInputType.MouseMovement
+			or input.UserInputType == Enum.UserInputType.Touch
+		) then
+			local delta = input.Position - dragStart
+			frame.Position = UDim2.new(
+				startPos.X.Scale,
+				startPos.X.Offset + delta.X,
+				startPos.Y.Scale,
+				startPos.Y.Offset + delta.Y
+			)
+		end
+	end)
+
+	UIS.InputEnded:Connect(function()
+		dragging = false
+	end)
+end
 
 --====================================================
--- TITLE BAR (드래그 가능)
+-- OPEN BUTTON (처음엔 이것만 보임)
+--====================================================
+local openBtn = Instance.new("TextButton", gui)
+openBtn.Size = UDim2.new(0,150,0,45)
+openBtn.Position = UDim2.new(0.5,-75,0.05,0)
+openBtn.Text = "Open Program"
+openBtn.BackgroundColor3 = Color3.fromRGB(120,170,255)
+openBtn.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner",openBtn).CornerRadius = UDim.new(0,12)
+
+makeDraggable(openBtn, openBtn)
+
+--====================================================
+-- MAIN PROGRAM WINDOW
+--====================================================
+local main = Instance.new("Frame", gui)
+main.Size = UDim2.new(0,430,0,460)
+main.Position = UDim2.new(0.5,-215,0.5,-230)
+main.BackgroundColor3 = Color3.fromRGB(22,22,32)
+main.Visible = false
+main.BorderSizePixel = 0
+Instance.new("UICorner",main).CornerRadius = UDim.new(0,14)
+
+--====================================================
+-- TITLE BAR
 --====================================================
 local titleBar = Instance.new("Frame", main)
 titleBar.Size = UDim2.new(1,0,0,40)
@@ -55,35 +105,11 @@ titleBar.BorderSizePixel = 0
 local title = Instance.new("TextLabel", titleBar)
 title.Size = UDim2.new(1,0,1,0)
 title.BackgroundTransparency = 1
-title.Text = "Program Control Panel"
+title.Text = "Control Program"
 title.TextColor3 = Color3.new(1,1,1)
 title.TextScaled = true
 
--- Drag
-local dragging, dragStart, startPos
-titleBar.InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 then
-		dragging = true
-		dragStart = input.Position
-		startPos = main.Position
-	end
-end)
-
-UIS.InputChanged:Connect(function(input)
-	if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-		local delta = input.Position - dragStart
-		main.Position = UDim2.new(
-			startPos.X.Scale,
-			startPos.X.Offset + delta.X,
-			startPos.Y.Scale,
-			startPos.Y.Offset + delta.Y
-		)
-	end
-end)
-
-UIS.InputEnded:Connect(function()
-	dragging = false
-end)
+makeDraggable(main, titleBar)
 
 --====================================================
 -- CLOSE BUTTON
@@ -95,11 +121,6 @@ closeBtn.Text = "X"
 closeBtn.BackgroundColor3 = Color3.fromRGB(170,60,60)
 closeBtn.TextColor3 = Color3.new(1,1,1)
 Instance.new("UICorner",closeBtn).CornerRadius = UDim.new(0,6)
-
-closeBtn.MouseButton1Click:Connect(function()
-	blur:Destroy()
-	gui:Destroy()
-end)
 
 --====================================================
 -- SCROLL AREA
@@ -123,6 +144,7 @@ end)
 -- UI COMPONENTS
 --====================================================
 local function createToggle(text,key)
+
 	local frame = Instance.new("Frame",scroll)
 	frame.Size = UDim2.new(1,0,0,55)
 	frame.BackgroundColor3 = Color3.fromRGB(35,35,55)
@@ -146,12 +168,14 @@ local function createToggle(text,key)
 	btn.MouseButton1Click:Connect(function()
 		SETTINGS[key] = not SETTINGS[key]
 		btn.Text = SETTINGS[key] and "ON" or "OFF"
-		btn.BackgroundColor3 = SETTINGS[key] and Color3.fromRGB(120,170,255)
+		btn.BackgroundColor3 = SETTINGS[key]
+			and Color3.fromRGB(120,170,255)
 			or Color3.fromRGB(80,80,80)
 	end)
 end
 
 local function createSlider(text,key,min,max)
+
 	local frame = Instance.new("Frame",scroll)
 	frame.Size = UDim2.new(1,0,0,75)
 	frame.BackgroundColor3 = Color3.fromRGB(35,35,55)
@@ -200,10 +224,29 @@ local function createSlider(text,key,min,max)
 	end)
 end
 
--- UI 생성
+-- 생성
 createToggle("Aimbot","Aimbot")
 createToggle("ESP","ESP")
 createSlider("FOV","FOV",50,400)
+
+--====================================================
+-- OPEN / CLOSE LOGIC
+--====================================================
+local opened = false
+
+openBtn.MouseButton1Click:Connect(function()
+	opened = not opened
+	main.Visible = opened
+	blur.Size = opened and 12 or 0
+	openBtn.Text = opened and "Close Program" or "Open Program"
+end)
+
+closeBtn.MouseButton1Click:Connect(function()
+	main.Visible = false
+	blur.Size = 0
+	openBtn.Text = "Open Program"
+	opened = false
+end)
 
 --====================================================
 -- FOV CIRCLE
@@ -215,34 +258,30 @@ circle.Filled = false
 circle.Visible = true
 
 --====================================================
--- ESP SYSTEM
+-- ESP STORAGE
 --====================================================
-local espObjects = {}
+local esp = {}
 
-local function createESP(plr)
-	local box = Drawing.new("Text")
-	box.Size = 13
-	box.Center = true
-	box.Outline = true
-	box.Color = Color3.new(1,1,1)
-	espObjects[plr] = box
+local function addESP(plr)
+	local text = Drawing.new("Text")
+	text.Size = 13
+	text.Center = true
+	text.Outline = true
+	text.Visible = false
+	esp[plr] = text
 end
 
 for _,p in pairs(Players:GetPlayers()) do
-	if p ~= player then
-		createESP(p)
-	end
+	if p ~= player then addESP(p) end
 end
 
 Players.PlayerAdded:Connect(function(p)
-	if p ~= player then
-		createESP(p)
-	end
+	if p ~= player then addESP(p) end
 end)
 
 Players.PlayerRemoving:Connect(function(p)
-	if espObjects[p] then
-		espObjects[p]:Remove()
+	if esp[p] then
+		esp[p]:Remove()
 	end
 end)
 
@@ -257,8 +296,9 @@ RunService.RenderStepped:Connect(function()
 	local closest
 	local shortest = SETTINGS.FOV
 
-	for plr,obj in pairs(espObjects) do
+	for plr,obj in pairs(esp) do
 		if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+
 			local hrp = plr.Character.HumanoidRootPart
 			local pos,visible = camera:WorldToViewportPoint(hrp.Position)
 
