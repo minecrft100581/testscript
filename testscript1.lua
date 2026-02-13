@@ -1,61 +1,183 @@
+--// Services
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+
+--============================--
+--        Panda System        --
+--============================--
+
+local BaseURL = "https://new.pandadevelopment.net/api/v1"
+local Client_ServiceID = "YOUR_SERVICE_ID"
+
+local function getHardwareId()
+    local success, hwid = pcall(gethwid)
+    if success and hwid then
+        return hwid
+    end
+
+    local clientId = tostring(game:GetService("RbxAnalyticsService"):GetClientId())
+    return clientId:gsub("-", "")
+end
+
+local function makeRequest(endpoint, body)
+    local response = request({
+        Url = BaseURL .. endpoint,
+        Method = "POST",
+        Headers = {["Content-Type"] = "application/json"},
+        Body = HttpService:JSONEncode(body)
+    })
+
+    if response and response.Body then
+        return HttpService:JSONDecode(response.Body)
+    end
+end
+
+local function Validate(key)
+    local result = makeRequest("/keys/validate", {
+        ServiceID = Client_ServiceID,
+        HWID = getHardwareId(),
+        Key = key
+    })
+
+    if not result then
+        return false, "Server connection failed", false
+    end
+
+    local success = result.Authenticated_Status == "Success"
+    return success, result.Note or "Invalid Key", result.Key_Premium or false
+end
+
+
+--============================--
+--            Luna            --
+--============================--
+
 local Luna = loadstring(game:HttpGet("https://raw.nebulasoftworks.xyz/luna", true))()
 
 local Window = Luna:CreateWindow({
-    Name = "Mobile Universal", -- This Is Title Of Your Window
-    Subtitle = "mobile universal script", -- A Gray Subtitle next To the main title.
-    LogoID = "82795327169782", -- The Asset ID of your logo. Set to nil if you do not have a logo for Luna to use.
-    LoadingEnabled = true, -- Whether to enable the loading animation. Set to false if you do not want the loading screen or have your own custom one.
-    LoadingTitle = "Luna Interface Suite", -- Header for loading screen
-    LoadingSubtitle = "by Nebula Softworks", -- Subtitle for loading screen
+    Name = "Mobile Universal",
+    Subtitle = "Panda Secured",
+    LogoID = "6031097225",
+    LoadingEnabled = true,
+    LoadingTitle = "Loading...",
+    LoadingSubtitle = "Please wait",
+    KeySystem = false -- ❗ Luna 기본 키 시스템 끔
+})
 
-    ConfigSettings = {
-        RootFolder = nil, -- The Root Folder Is Only If You Have A Hub With Multiple Game Scripts and u may remove it. DO NOT ADD A SLASH
-        ConfigFolder = "mobile universal script" -- The Name Of The Folder Where Luna Will Store Configs For This Script. DO NOT ADD A SLASH
-    },
+Luna:Notification({
+    Title = "Welcome",
+    Icon = "sparkle",
+    ImageSource = "Material",
+    Content = "Authentication required."
+})
 
-    KeySystem = true, -- As Of Beta 6, Luna Has officially Implemented A Key System!
-    KeySettings = {
-        Title = "Mobile Universal Key System",
-        Subtitle = "Key System",
-        Note = "Best Key System Ever! Also, Please Use A HWID Keysystem like Pelican, Luarmor etc. that provide key strings based on your HWID since putting a simple string is very easy to bypass",
-        SaveInRoot = false, -- Enabling will save the key in your RootFolder (YOU MUST HAVE ONE BEFORE ENABLING THIS OPTION)
-        SaveKey = true, -- The user's key will be saved, but if you change the key, they will be unable to use your script
-        Key = {"Example Key"}, -- List of keys that will be accepted by the system, please use a system like Pelican or Luarmor that provide key strings based on your HWID since putting a simple string is very easy to bypass
-        SecondAction = {
-            Enabled = true, -- Set to false if you do not want a second action,
-            Type = "Link", -- Link / Discord.
-            Parameter = "" -- If Type is Discord, then put your invite link (DO NOT PUT DISCORD.GG/). Else, put the full link of your key system here.
-        }
+--============================--
+--        Key Tab             --
+--============================--
+
+local KeyTab = Window:CreateTab({
+    Name = "Key System",
+    Icon = "vpn_key",
+    ImageSource = "Material"
+})
+
+local KeyInput = KeyTab:CreateInput({
+    Name = "Enter Key",
+    PlaceholderText = "PANDA-XXXX-XXXX-XXXX-XXXX",
+    CurrentValue = "",
+    Numeric = false,
+    Enter = false
+})
+
+KeyTab:CreateButton({
+    Name = "Validate",
+    Callback = function()
+
+        local success, message, isPremium = Validate(KeyInput.Value)
+
+        if not success then
+            Luna:Notification({
+                Title = "Access Denied",
+                Icon = "error",
+                ImageSource = "Material",
+                Content = message
+            })
+            Players.LocalPlayer:Kick("Invalid Key")
+            return
+        end
+
+        Luna:Notification({
+            Title = "Access Granted",
+            Icon = "check_circle",
+            ImageSource = "Material",
+            Content = isPremium and "Premium Key" or "Standard Key"
+        })
+
+        loadMainUI(isPremium)
+    end
+})
+
+--============================--
+--       Main Interface       --
+--============================--
+
+function loadMainUI(isPremium)
+
+    local Tabs = {
+        Main = Window:CreateTab({
+            Name = "Main",
+            Icon = "view_in_ar",
+            ImageSource = "Material",
+            ShowTitle = true
+        }),
+        Debug = Window:CreateTab({
+            Name = "Debug",
+            Icon = "settings"
+        })
     }
-})
 
-local Tab = Window:CreateTab({
-    Name = "Tab 1",
-    Icon = "view_in_ar",
-    ImageSource = "Material",
-    ShowTitle = true -- This will determine whether the big header text in the tab will show
-})
+    -- Main Tab
+    Tabs.Main:CreateSection("Main Features")
 
-Tab:CreateSection("Section 1")
+    Tabs.Main:CreateButton({
+        Name = "Example Button",
+        Callback = function()
+            print("Running...")
+        end
+    })
 
-Section:Set("Section1")
-Section:Destroy() -- Destroys the section
+    Tabs.Main:CreateToggle({
+        Name = "Example Toggle",
+        CurrentValue = false,
+        Callback = function(v)
+            print("Toggle:", v)
+        end
+    })
 
-Tab:CreateDivider()
+    -- Debug Tab
+    Tabs.Debug:CreateColorPicker({
+        Name = "UI Color",
+        Color = Color3.fromRGB(86,171,128),
+        Callback = function(color)
+            print("Color changed:", color)
+        end
+    })
 
-Luna:Destroy() --Destroying Luna Does Not Toggle Off Your Scripts So When Destroying, make sure you disable them first
+    -- ⭐ Premium Tab
+    if isPremium then
+        local PremiumTab = Window:CreateTab({
+            Name = "Premium",
+            Icon = "star",
+            ImageSource = "Material"
+        })
 
-ElementName.Settings
+        PremiumTab:CreateSection("Premium Features")
 
-ElementName:Set(
-  put your new settings table here. unspecified elements will use the previous values.
-)
-
-ElementName:Destroy()
-
-Luna:Notification({ 
-    Title = "Hello",
-    Icon = "notifications_active",
-    ImageSource = "Material",
-    Content = "This Is A Preview Of Luna's Dynamic Notification System Entailing Estimated/Calculated Wait Times, A Sleek Design, Icons, And A Glassmorphic Look"
-})
+        PremiumTab:CreateButton({
+            Name = "Premium Feature",
+            Callback = function()
+                print("Premium Active")
+            end
+        })
+    end
+end
