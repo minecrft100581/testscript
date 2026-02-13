@@ -5,7 +5,7 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
-local Camera = workspace.CurrentCamera
+local Camera = workspace:WaitForChild("CurrentCamera")
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -48,7 +48,6 @@ local Window = Luna:CreateWindow({
 
 local MainTab = Window:CreateTab("Main")
 
--- Aimbot
 MainTab:CreateToggle({
     Name = "Aimbot",
     CurrentValue = false,
@@ -76,7 +75,6 @@ MainTab:CreateSlider({
     end
 })
 
--- FOV
 MainTab:CreateSlider({
     Name = "FOV Size",
     Range = {50,500},
@@ -103,41 +101,6 @@ MainTab:CreateToggle({
     end
 })
 
--- ESP
-MainTab:CreateToggle({
-    Name = "ESP",
-    CurrentValue = false,
-    Callback = function(v)
-        Settings.ESP = v
-    end
-})
-
-MainTab:CreateDropdown({
-    Name = "ESP Mode",
-    Options = {"Box","Skeleton"},
-    CurrentOption = "Box",
-    Callback = function(v)
-        Settings.ESPMode = v
-    end
-})
-
-MainTab:CreateColorPicker({
-    Name = "ESP Color",
-    Color = Settings.ESPColor,
-    Callback = function(v)
-        Settings.ESPColor = v
-    end
-})
-
-MainTab:CreateToggle({
-    Name = "ESP Rainbow",
-    CurrentValue = false,
-    Callback = function(v)
-        Settings.ESPRainbow = v
-    end
-})
-
--- General
 MainTab:CreateToggle({
     Name = "Team Check",
     CurrentValue = false,
@@ -163,14 +126,25 @@ MainTab:CreateToggle({
 })
 
 --// =========================
---// FOV CIRCLE
+--// FOV UI (ScreenGui 기반)
 --// =========================
 
-local FOVCircle = Drawing.new("Circle")
-FOVCircle.Filled = false
-FOVCircle.Thickness = 2
-FOVCircle.NumSides = 100
-FOVCircle.Visible = true
+local FOVGui = Instance.new("ScreenGui")
+FOVGui.ResetOnSpawn = false
+FOVGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local FOVCircle = Instance.new("Frame")
+FOVCircle.AnchorPoint = Vector2.new(0.5,0.5)
+FOVCircle.BackgroundTransparency = 1
+FOVCircle.Size = UDim2.fromOffset(Settings.FOV*2, Settings.FOV*2)
+FOVCircle.Parent = FOVGui
+
+local UICorner = Instance.new("UICorner", FOVCircle)
+UICorner.CornerRadius = UDim.new(1,0)
+
+local UIStroke = Instance.new("UIStroke", FOVCircle)
+UIStroke.Thickness = 2
+UIStroke.Color = Settings.FOVColor
 
 --// =========================
 --// VISIBILITY CHECK
@@ -179,6 +153,7 @@ FOVCircle.Visible = true
 local function IsVisible(part)
     if not Settings.VisibleCheck then return true end
     if not part or not part.Parent then return false end
+    if not LocalPlayer.Character then return false end
 
     local origin = Camera.CFrame.Position
     local direction = (part.Position - origin)
@@ -187,7 +162,7 @@ local function IsVisible(part)
     params.FilterDescendantsInstances = {LocalPlayer.Character}
     params.FilterType = Enum.RaycastFilterType.Blacklist
 
-    local result = workspace:Raycast(origin, direction, params)
+    local result = workspace:Raycast(origin, direction.Unit * direction.Magnitude, params)
 
     if result and not result.Instance:IsDescendantOf(part.Parent) then
         return false
@@ -203,14 +178,18 @@ end
 local function GetClosestTarget()
     local closest = nil
     local shortest = Settings.FOV
+
     local mousePos = UIS:GetMouseLocation()
 
     for _,player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer then
 
+            if Settings.TeamCheck and player.Team == LocalPlayer.Team then
+                continue
+            end
+
             local char = player.Character
             if not char then continue end
-            if Settings.TeamCheck and player.Team == LocalPlayer.Team then continue end
 
             local part = char:FindFirstChild(Settings.AimPart)
             if not part then continue end
@@ -219,6 +198,7 @@ local function GetClosestTarget()
             if not onScreen then continue end
 
             local dist = (Vector2.new(screenPos.X,screenPos.Y) - mousePos).Magnitude
+
             if dist < shortest and IsVisible(part) then
                 shortest = dist
                 closest = part
@@ -230,31 +210,32 @@ local function GetClosestTarget()
 end
 
 --// =========================
---// RENDER LOOP
+--// MAIN LOOP
 --// =========================
 
 RunService.RenderStepped:Connect(function()
 
-    -- Rainbow
+    -- Rainbow 처리
     local hue = tick() % 5 / 5
     local rainbow = Color3.fromHSV(hue,1,1)
 
     if Settings.FOVRainbow then
-        FOVCircle.Color = rainbow
+        UIStroke.Color = rainbow
     else
-        FOVCircle.Color = Settings.FOVColor
+        UIStroke.Color = Settings.FOVColor
     end
 
-    FOVCircle.Position = UIS:GetMouseLocation()
-    FOVCircle.Radius = Settings.FOV
+    -- FOV 위치 업데이트
+    local mousePos = UIS:GetMouseLocation()
+    FOVCircle.Position = UDim2.fromOffset(mousePos.X, mousePos.Y)
+    FOVCircle.Size = UDim2.fromOffset(Settings.FOV*2, Settings.FOV*2)
 
     -- Aimbot
     if Settings.Aimbot then
         local target = GetClosestTarget()
         if target then
-            local cf = Camera.CFrame
-            local newCF = CFrame.new(cf.Position, target.Position)
-            Camera.CFrame = cf:Lerp(newCF, Settings.Smoothness)
+            local newCF = CFrame.new(Camera.CFrame.Position, target.Position)
+            Camera.CFrame = Camera.CFrame:Lerp(newCF, Settings.Smoothness)
         end
     end
 
