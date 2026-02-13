@@ -7,7 +7,7 @@ local HttpService = game:GetService("HttpService")
 --============================--
 
 local BaseURL = "https://new.pandadevelopment.net/api/v1"
-local Client_ServiceID = "YOUR_SERVICE_ID"
+local Client_ServiceID = "zyroxkr"
 
 local function getHardwareId()
     local success, hwid = pcall(gethwid)
@@ -19,34 +19,38 @@ local function getHardwareId()
     return clientId:gsub("-", "")
 end
 
-local function makeRequest(endpoint, body)
+local function Validate(key)
     local response = request({
-        Url = BaseURL .. endpoint,
+        Url = BaseURL .. "/keys/validate",
         Method = "POST",
         Headers = {["Content-Type"] = "application/json"},
-        Body = HttpService:JSONEncode(body)
+        Body = HttpService:JSONEncode({
+            ServiceID = Client_ServiceID,
+            HWID = getHardwareId(),
+            Key = key
+        })
     })
 
-    if response and response.Body then
-        return HttpService:JSONDecode(response.Body)
+    if not response or not response.Body then
+        return false, "Server connection failed"
+    end
+
+    local result = HttpService:JSONDecode(response.Body)
+
+    if result.Authenticated_Status == "Success" then
+        return true, "Key Valid"
+    else
+        return false, result.Note or "Invalid Key"
     end
 end
 
-local function Validate(key)
-    local result = makeRequest("/keys/validate", {
-        ServiceID = Client_ServiceID,
-        HWID = getHardwareId(),
-        Key = key
-    })
+--============================--
+--         Main Script        --
+--============================--
 
-    if not result then
-        return false, "Server connection failed", false
-    end
-
-    local success = result.Authenticated_Status == "Success"
-    return success, result.Note or "Invalid Key", result.Key_Premium or false
+local function RunMainScript()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/minecrft100581/testscript/refs/heads/main/testscript2.lua"))()
 end
-
 
 --============================--
 --            Luna            --
@@ -55,31 +59,22 @@ end
 local Luna = loadstring(game:HttpGet("https://raw.nebulasoftworks.xyz/luna", true))()
 
 local Window = Luna:CreateWindow({
-    Name = "Mobile Universal",
-    Subtitle = "Panda Secured",
+    Name = "Authentication",
+    Subtitle = "Enter your key",
     LogoID = "6031097225",
     LoadingEnabled = true,
-    LoadingTitle = "Loading...",
+    LoadingTitle = "Checking Key...",
     LoadingSubtitle = "Please wait",
-    KeySystem = false -- ❗ Luna 기본 키 시스템 끔
+    KeySystem = false
 })
-
-Luna:Notification({
-    Title = "Welcome",
-    Icon = "sparkle",
-    ImageSource = "Material",
-    Content = "Authentication required."
-})
-
---============================--
---        Key Tab             --
---============================--
 
 local KeyTab = Window:CreateTab({
     Name = "Key System",
     Icon = "vpn_key",
     ImageSource = "Material"
 })
+
+KeyTab:CreateSection("Authentication Required")
 
 local KeyInput = KeyTab:CreateInput({
     Name = "Enter Key",
@@ -90,94 +85,46 @@ local KeyInput = KeyTab:CreateInput({
 })
 
 KeyTab:CreateButton({
-    Name = "Validate",
+    Name = "Validate Key",
     Callback = function()
 
-        local success, message, isPremium = Validate(KeyInput.Value)
+        if KeyInput.Value == "" then
+            Luna:Notification({
+                Title = "Error",
+                Icon = "error",
+                ImageSource = "Material",
+                Content = "Please enter a key first."
+            })
+            return
+        end
+
+        local success, message = Validate(KeyInput.Value)
 
         if not success then
+            -- ❌ 실패 → 재입력 허용
             Luna:Notification({
                 Title = "Access Denied",
                 Icon = "error",
                 ImageSource = "Material",
                 Content = message
             })
-            Players.LocalPlayer:Kick("Invalid Key")
             return
         end
 
+        -- ✅ 성공
         Luna:Notification({
             Title = "Access Granted",
             Icon = "check_circle",
             ImageSource = "Material",
-            Content = isPremium and "Premium Key" or "Standard Key"
+            Content = "Authentication Successful"
         })
 
-        loadMainUI(isPremium)
+        task.wait(0.8)
+
+        -- UI 종료
+        Luna:Destroy()
+
+        -- 메인 스크립트 실행
+        RunMainScript()
     end
 })
-
---============================--
---       Main Interface       --
---============================--
-
-function loadMainUI(isPremium)
-
-    local Tabs = {
-        Main = Window:CreateTab({
-            Name = "Main",
-            Icon = "view_in_ar",
-            ImageSource = "Material",
-            ShowTitle = true
-        }),
-        Debug = Window:CreateTab({
-            Name = "Debug",
-            Icon = "settings"
-        })
-    }
-
-    -- Main Tab
-    Tabs.Main:CreateSection("Main Features")
-
-    Tabs.Main:CreateButton({
-        Name = "Example Button",
-        Callback = function()
-            print("Running...")
-        end
-    })
-
-    Tabs.Main:CreateToggle({
-        Name = "Example Toggle",
-        CurrentValue = false,
-        Callback = function(v)
-            print("Toggle:", v)
-        end
-    })
-
-    -- Debug Tab
-    Tabs.Debug:CreateColorPicker({
-        Name = "UI Color",
-        Color = Color3.fromRGB(86,171,128),
-        Callback = function(color)
-            print("Color changed:", color)
-        end
-    })
-
-    -- ⭐ Premium Tab
-    if isPremium then
-        local PremiumTab = Window:CreateTab({
-            Name = "Premium",
-            Icon = "star",
-            ImageSource = "Material"
-        })
-
-        PremiumTab:CreateSection("Premium Features")
-
-        PremiumTab:CreateButton({
-            Name = "Premium Feature",
-            Callback = function()
-                print("Premium Active")
-            end
-        })
-    end
-end
