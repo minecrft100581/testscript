@@ -38,8 +38,14 @@ local Settings = {
     AimPart = "Head",
     Smoothness = 0.15,
     FOV = 150,
+    MaxDistance = 1000,
+
     FOVColor = Color3.fromRGB(255,255,255),
     FOVRainbow = false,
+
+    ESP = false,
+    ESPColor = Color3.fromRGB(255,0,0),
+
     TeamCheck = false,
     VisibleCheck = false
 }
@@ -51,14 +57,9 @@ local Settings = {
 local Window = Luna:CreateWindow({
     Name = "Program UI",
     Subtitle = "Integrated System",
-    LogoID = "6031097225",
-    LoadingEnabled = false,
-    KeySystem = false
+    KeySystem = false,
+    LoadingEnabled = false
 })
-
---// =========================
---// TAB
---// =========================
 
 local Tabs = {
     Main = Window:CreateTab({
@@ -103,6 +104,16 @@ Tabs.Main:CreateSlider({
     end
 })
 
+Tabs.Main:CreateSlider({
+    Name = "Max Distance",
+    Range = {50,3000},
+    Increment = 10,
+    CurrentValue = 1000,
+    Callback = function(v)
+        Settings.MaxDistance = v
+    end
+})
+
 Tabs.Main:CreateSection("FOV")
 
 Tabs.Main:CreateSlider({
@@ -131,6 +142,24 @@ Tabs.Main:CreateToggle({
     end
 })
 
+Tabs.Main:CreateSection("ESP")
+
+Tabs.Main:CreateToggle({
+    Name = "Enable ESP",
+    CurrentValue = false,
+    Callback = function(v)
+        Settings.ESP = v
+    end
+})
+
+Tabs.Main:CreateColorPicker({
+    Name = "ESP Color",
+    Color = Settings.ESPColor,
+    Callback = function(v)
+        Settings.ESPColor = v
+    end
+})
+
 Tabs.Main:CreateSection("Checks")
 
 Tabs.Main:CreateToggle({
@@ -150,7 +179,7 @@ Tabs.Main:CreateToggle({
 })
 
 --// =========================
---// FOV GUI
+--// FOV GUI (반응형)
 --// =========================
 
 local FOVGui = Instance.new("ScreenGui")
@@ -168,12 +197,10 @@ UICorner.CornerRadius = UDim.new(1,0)
 local UIStroke = Instance.new("UIStroke", FOVCircle)
 UIStroke.Thickness = 2
 
---// =========================
---// UTIL
---// =========================
+local IsMobile = UIS.TouchEnabled and not UIS.KeyboardEnabled
 
-local function GetMousePos()
-    if UIS.TouchEnabled then
+local function GetAimPosition()
+    if IsMobile then
         local v = Camera.ViewportSize
         return Vector2.new(v.X/2, v.Y/2)
     else
@@ -181,9 +208,58 @@ local function GetMousePos()
     end
 end
 
+--// =========================
+--// ESP SYSTEM (Highlight 기반)
+--// =========================
+
+local ESPContainer = {}
+
+local function UpdateESP()
+    for _,player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+
+            if Settings.TeamCheck and player.Team == LocalPlayer.Team then
+                continue
+            end
+
+            local char = player.Character
+            if not char then continue end
+
+            if Settings.ESP then
+                if not ESPContainer[player] then
+                    local hl = Instance.new("Highlight")
+                    hl.FillTransparency = 0.5
+                    hl.OutlineTransparency = 0
+                    hl.Parent = char
+                    ESPContainer[player] = hl
+                end
+
+                ESPContainer[player].FillColor = Settings.ESPColor
+                ESPContainer[player].OutlineColor = Settings.ESPColor
+                ESPContainer[player].Enabled = true
+            else
+                if ESPContainer[player] then
+                    ESPContainer[player]:Destroy()
+                    ESPContainer[player] = nil
+                end
+            end
+        end
+    end
+end
+
+Players.PlayerRemoving:Connect(function(plr)
+    if ESPContainer[plr] then
+        ESPContainer[plr]:Destroy()
+        ESPContainer[plr] = nil
+    end
+end)
+
+--// =========================
+--// VISIBILITY
+--// =========================
+
 local function IsVisible(part)
     if not Settings.VisibleCheck then return true end
-    if not part or not part.Parent then return false end
     if not LocalPlayer.Character then return false end
 
     local origin = Camera.CFrame.Position
@@ -202,10 +278,14 @@ local function IsVisible(part)
     return true
 end
 
+--// =========================
+--// TARGET FINDER
+--// =========================
+
 local function GetClosestTarget()
     local closest = nil
     local shortest = Settings.FOV
-    local mousePos = GetMousePos()
+    local aimPos = GetAimPosition()
 
     for _,player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer then
@@ -217,13 +297,19 @@ local function GetClosestTarget()
             local char = player.Character
             if not char then continue end
 
+            local root = char:FindFirstChild("HumanoidRootPart")
             local part = char:FindFirstChild(Settings.AimPart)
-            if not part then continue end
+
+            if not root or not part then continue end
+
+            if (root.Position - Camera.CFrame.Position).Magnitude > Settings.MaxDistance then
+                continue
+            end
 
             local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
             if not onScreen then continue end
 
-            local dist = (Vector2.new(screenPos.X,screenPos.Y) - mousePos).Magnitude
+            local dist = (Vector2.new(screenPos.X,screenPos.Y) - aimPos).Magnitude
 
             if dist < shortest and IsVisible(part) then
                 shortest = dist
@@ -241,19 +327,17 @@ end
 
 RunService.RenderStepped:Connect(function()
 
+    UpdateESP()
+
     -- Rainbow
     local hue = tick() % 5 / 5
     local rainbow = Color3.fromHSV(hue,1,1)
 
-    if Settings.FOVRainbow then
-        UIStroke.Color = rainbow
-    else
-        UIStroke.Color = Settings.FOVColor
-    end
+    UIStroke.Color = Settings.FOVRainbow and rainbow or Settings.FOVColor
 
     -- FOV
-    local mousePos = GetMousePos()
-    FOVCircle.Position = UDim2.fromOffset(mousePos.X, mousePos.Y)
+    local aimPos = GetAimPosition()
+    FOVCircle.Position = UDim2.fromOffset(aimPos.X, aimPos.Y)
     FOVCircle.Size = UDim2.fromOffset(Settings.FOV*2, Settings.FOV*2)
 
     -- Aimbot
