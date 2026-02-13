@@ -5,9 +5,55 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
-local Camera = workspace:WaitForChild("CurrentCamera")
 
 local LocalPlayer = Players.LocalPlayer
+
+--// =========================
+--// SAFE CAMERA LOAD
+--// =========================
+
+local function GetCamera()
+    local cam = workspace.CurrentCamera
+    while not cam do
+        workspace:GetPropertyChangedSignal("CurrentCamera"):Wait()
+        cam = workspace.CurrentCamera
+    end
+    return cam
+end
+
+local Camera = GetCamera()
+
+--// =========================
+--// SAFE HTTP LOADER (Executor 유사 환경 대응)
+--// =========================
+
+local function httpGet(url)
+    if game.HttpGet then
+        return game:HttpGet(url)
+    elseif syn and syn.request then
+        return syn.request({Url=url, Method="GET"}).Body
+    elseif http_request then
+        return http_request({Url=url, Method="GET"}).Body
+    elseif request then
+        return request({Url=url, Method="GET"}).Body
+    else
+        error("No HTTP method available")
+    end
+end
+
+--// =========================
+--// SAFE LUNA LOAD
+--// =========================
+
+local Luna
+local ok, err = pcall(function()
+    Luna = loadstring(httpGet("https://raw.nebulasoftworks.xyz/luna"))()
+end)
+
+if not ok or not Luna then
+    warn("Luna Load Failed:", err)
+    return
+end
 
 --// =========================
 --// SETTINGS
@@ -15,18 +61,11 @@ local LocalPlayer = Players.LocalPlayer
 
 local Settings = {
     Aimbot = false,
-    ESP = false,
-
     AimPart = "Head",
-    ESPMode = "Box",
-
     Smoothness = 0.15,
     FOV = 150,
 
-    ESPColor = Color3.fromRGB(255,0,0),
     FOVColor = Color3.fromRGB(255,255,255),
-
-    ESPRainbow = false,
     FOVRainbow = false,
 
     TeamCheck = false,
@@ -35,10 +74,8 @@ local Settings = {
 }
 
 --// =========================
---// LUNA UI
+--// UI
 --// =========================
-
-local Luna = loadstring(game:HttpGet("https://raw.nebulasoftworks.xyz/luna", true))()
 
 local Window = Luna:CreateWindow({
     Name = "Program UI",
@@ -117,16 +154,8 @@ MainTab:CreateToggle({
     end
 })
 
-MainTab:CreateToggle({
-    Name = "Wall Check",
-    CurrentValue = false,
-    Callback = function(v)
-        Settings.WallCheck = v
-    end
-})
-
 --// =========================
---// FOV UI (ScreenGui 기반)
+--// FOV GUI (Drawing 제거)
 --// =========================
 
 local FOVGui = Instance.new("ScreenGui")
@@ -136,7 +165,6 @@ FOVGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 local FOVCircle = Instance.new("Frame")
 FOVCircle.AnchorPoint = Vector2.new(0.5,0.5)
 FOVCircle.BackgroundTransparency = 1
-FOVCircle.Size = UDim2.fromOffset(Settings.FOV*2, Settings.FOV*2)
 FOVCircle.Parent = FOVGui
 
 local UICorner = Instance.new("UICorner", FOVCircle)
@@ -145,6 +173,19 @@ UICorner.CornerRadius = UDim.new(1,0)
 local UIStroke = Instance.new("UIStroke", FOVCircle)
 UIStroke.Thickness = 2
 UIStroke.Color = Settings.FOVColor
+
+--// =========================
+--// SAFE MOUSE POSITION
+--// =========================
+
+local function GetMousePos()
+    if UIS.TouchEnabled then
+        local v = Camera.ViewportSize
+        return Vector2.new(v.X/2, v.Y/2)
+    else
+        return UIS:GetMouseLocation()
+    end
+end
 
 --// =========================
 --// VISIBILITY CHECK
@@ -156,13 +197,13 @@ local function IsVisible(part)
     if not LocalPlayer.Character then return false end
 
     local origin = Camera.CFrame.Position
-    local direction = (part.Position - origin)
+    local direction = part.Position - origin
 
     local params = RaycastParams.new()
     params.FilterDescendantsInstances = {LocalPlayer.Character}
     params.FilterType = Enum.RaycastFilterType.Blacklist
 
-    local result = workspace:Raycast(origin, direction.Unit * direction.Magnitude, params)
+    local result = workspace:Raycast(origin, direction, params)
 
     if result and not result.Instance:IsDescendantOf(part.Parent) then
         return false
@@ -178,8 +219,7 @@ end
 local function GetClosestTarget()
     local closest = nil
     local shortest = Settings.FOV
-
-    local mousePos = UIS:GetMouseLocation()
+    local mousePos = GetMousePos()
 
     for _,player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer then
@@ -215,7 +255,7 @@ end
 
 RunService.RenderStepped:Connect(function()
 
-    -- Rainbow 처리
+    -- Rainbow
     local hue = tick() % 5 / 5
     local rainbow = Color3.fromHSV(hue,1,1)
 
@@ -225,8 +265,8 @@ RunService.RenderStepped:Connect(function()
         UIStroke.Color = Settings.FOVColor
     end
 
-    -- FOV 위치 업데이트
-    local mousePos = UIS:GetMouseLocation()
+    -- FOV 위치/크기
+    local mousePos = GetMousePos()
     FOVCircle.Position = UDim2.fromOffset(mousePos.X, mousePos.Y)
     FOVCircle.Size = UDim2.fromOffset(Settings.FOV*2, Settings.FOV*2)
 
