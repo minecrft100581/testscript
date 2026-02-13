@@ -38,7 +38,7 @@ local Settings = {
 --// LUNA UI
 --// =========================
 
-local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/Luna/main/source.lua"))()
+local Luna = loadstring(game:HttpGet("https://raw.nebulasoftworks.xyz/luna", true))()
 
 local Window = Luna:CreateWindow({
     Name = "Program UI",
