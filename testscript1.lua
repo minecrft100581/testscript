@@ -1,4 +1,6 @@
---// SERVICES
+--====================================================
+-- SERVICES
+--====================================================
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -9,26 +11,19 @@ local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
 --====================================================
--- DEVICE CHECK
---====================================================
-local isMobile = UIS.TouchEnabled and not UIS.KeyboardEnabled
-
---====================================================
--- SETTINGS (슬라이더 연동값)
+-- SETTINGS (모든 기능 값 관리)
 --====================================================
 local SETTINGS = {
-	Enabled = false,
-	Trigger = false,
-	FOV = 120,
-	Smoothness = 5,
-	Distance = 300
+	Aimbot = false,
+	ESP = false,
+	FOV = 150,
+	Smoothness = 0.12
 }
 
 --====================================================
 -- GUI ROOT
 --====================================================
 local gui = Instance.new("ScreenGui")
-gui.IgnoreGuiInset = true
 gui.ResetOnSpawn = false
 gui.Parent = player:WaitForChild("PlayerGui")
 
@@ -36,36 +31,48 @@ gui.Parent = player:WaitForChild("PlayerGui")
 -- BLUR
 --====================================================
 local blur = Instance.new("BlurEffect")
-blur.Size = 0
+blur.Size = 12
 blur.Parent = Lighting
 
 --====================================================
--- OPEN BUTTON
+-- MAIN WINDOW
 --====================================================
-local openBtn = Instance.new("TextButton", gui)
-openBtn.Size = isMobile and UDim2.new(0,100,0,35) or UDim2.new(0,140,0,45)
-openBtn.Position = UDim2.new(0.5,-openBtn.Size.X.Offset/2,0.05,0)
-openBtn.Text = "OPEN"
-openBtn.BackgroundColor3 = Color3.fromRGB(120,170,255)
-openBtn.TextColor3 = Color3.new(1,1,1)
-Instance.new("UICorner",openBtn).CornerRadius = UDim.new(0,12)
+local main = Instance.new("Frame", gui)
+main.Size = UDim2.new(0,420,0,450)
+main.Position = UDim2.new(0.5,-210,0.5,-225)
+main.BackgroundColor3 = Color3.fromRGB(20,20,30)
+main.BorderSizePixel = 0
+Instance.new("UICorner",main).CornerRadius = UDim.new(0,12)
 
--- Drag support
+--====================================================
+-- TITLE BAR (드래그 가능)
+--====================================================
+local titleBar = Instance.new("Frame", main)
+titleBar.Size = UDim2.new(1,0,0,40)
+titleBar.BackgroundColor3 = Color3.fromRGB(30,30,45)
+titleBar.BorderSizePixel = 0
+
+local title = Instance.new("TextLabel", titleBar)
+title.Size = UDim2.new(1,0,1,0)
+title.BackgroundTransparency = 1
+title.Text = "Program Control Panel"
+title.TextColor3 = Color3.new(1,1,1)
+title.TextScaled = true
+
+-- Drag
 local dragging, dragStart, startPos
-openBtn.InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1
-	or input.UserInputType == Enum.UserInputType.Touch then
+titleBar.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
 		dragging = true
 		dragStart = input.Position
-		startPos = openBtn.Position
+		startPos = main.Position
 	end
 end)
 
 UIS.InputChanged:Connect(function(input)
-	if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
-	or input.UserInputType == Enum.UserInputType.Touch) then
+	if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
 		local delta = input.Position - dragStart
-		openBtn.Position = UDim2.new(
+		main.Position = UDim2.new(
 			startPos.X.Scale,
 			startPos.X.Offset + delta.X,
 			startPos.Y.Scale,
@@ -79,24 +86,31 @@ UIS.InputEnded:Connect(function()
 end)
 
 --====================================================
--- MAIN WINDOW
+-- CLOSE BUTTON
 --====================================================
-local main = Instance.new("Frame", gui)
-main.Size = isMobile and UDim2.new(0.9,0,0.75,0) or UDim2.new(0.8,0,0.75,0)
-main.Position = UDim2.new(0.1,0,0.12,0)
-main.BackgroundColor3 = Color3.fromRGB(25,25,35)
-main.Visible = false
-Instance.new("UICorner",main).CornerRadius = UDim.new(0,16)
+local closeBtn = Instance.new("TextButton", titleBar)
+closeBtn.Size = UDim2.new(0,35,0,28)
+closeBtn.Position = UDim2.new(1,-40,0,6)
+closeBtn.Text = "X"
+closeBtn.BackgroundColor3 = Color3.fromRGB(170,60,60)
+closeBtn.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner",closeBtn).CornerRadius = UDim.new(0,6)
+
+closeBtn.MouseButton1Click:Connect(function()
+	blur:Destroy()
+	gui:Destroy()
+end)
 
 --====================================================
--- SCROLL
+-- SCROLL AREA
 --====================================================
 local scroll = Instance.new("ScrollingFrame", main)
-scroll.Position = UDim2.new(0,10,0,10)
-scroll.Size = UDim2.new(1,-20,1,-20)
+scroll.Position = UDim2.new(0,10,0,50)
+scroll.Size = UDim2.new(1,-20,1,-60)
 scroll.CanvasSize = UDim2.new(0,0,0,0)
 scroll.ScrollBarThickness = 6
 scroll.BackgroundTransparency = 1
+scroll.BorderSizePixel = 0
 
 local layout = Instance.new("UIListLayout", scroll)
 layout.Padding = UDim.new(0,12)
@@ -106,118 +120,90 @@ layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
 end)
 
 --====================================================
--- TOGGLE
+-- UI COMPONENTS
 --====================================================
-local function createToggle(text,settingKey)
-	local state = SETTINGS[settingKey]
-
+local function createToggle(text,key)
 	local frame = Instance.new("Frame",scroll)
-	frame.Size = UDim2.new(1,0,0,60)
-	frame.BackgroundColor3 = Color3.fromRGB(40,40,60)
-	Instance.new("UICorner",frame).CornerRadius = UDim.new(0,12)
+	frame.Size = UDim2.new(1,0,0,55)
+	frame.BackgroundColor3 = Color3.fromRGB(35,35,55)
+	Instance.new("UICorner",frame).CornerRadius = UDim.new(0,10)
 
 	local label = Instance.new("TextLabel",frame)
-	label.Size = UDim2.new(0.65,0,1,0)
+	label.Size = UDim2.new(0.6,0,1,0)
 	label.BackgroundTransparency = 1
 	label.Text = text
-	label.TextScaled = true
 	label.TextColor3 = Color3.new(1,1,1)
+	label.TextScaled = true
 
-	local button = Instance.new("TextButton",frame)
-	button.Size = UDim2.new(0.25,0,0.65,0)
-	button.Position = UDim2.new(0.7,0,0.175,0)
-	button.Text = state and "ON" or "OFF"
-	button.BackgroundColor3 = state and Color3.fromRGB(120,170,255)
-		or Color3.fromRGB(90,90,90)
-	button.TextColor3 = Color3.new(1,1,1)
-	Instance.new("UICorner",button).CornerRadius = UDim.new(0,10)
+	local btn = Instance.new("TextButton",frame)
+	btn.Size = UDim2.new(0.3,0,0.65,0)
+	btn.Position = UDim2.new(0.65,0,0.175,0)
+	btn.Text = "OFF"
+	btn.BackgroundColor3 = Color3.fromRGB(80,80,80)
+	btn.TextColor3 = Color3.new(1,1,1)
+	Instance.new("UICorner",btn).CornerRadius = UDim.new(0,8)
 
-	button.MouseButton1Click:Connect(function()
-		state = not state
-		SETTINGS[settingKey] = state
-		button.Text = state and "ON" or "OFF"
-		button.BackgroundColor3 = state and Color3.fromRGB(120,170,255)
-			or Color3.fromRGB(90,90,90)
+	btn.MouseButton1Click:Connect(function()
+		SETTINGS[key] = not SETTINGS[key]
+		btn.Text = SETTINGS[key] and "ON" or "OFF"
+		btn.BackgroundColor3 = SETTINGS[key] and Color3.fromRGB(120,170,255)
+			or Color3.fromRGB(80,80,80)
 	end)
 end
 
---====================================================
--- SLIDER
---====================================================
-local function createSlider(text,min,max,settingKey)
-	local value = SETTINGS[settingKey]
-
+local function createSlider(text,key,min,max)
 	local frame = Instance.new("Frame",scroll)
-	frame.Size = UDim2.new(1,0,0,80)
-	frame.BackgroundColor3 = Color3.fromRGB(40,40,60)
-	Instance.new("UICorner",frame).CornerRadius = UDim.new(0,12)
+	frame.Size = UDim2.new(1,0,0,75)
+	frame.BackgroundColor3 = Color3.fromRGB(35,35,55)
+	Instance.new("UICorner",frame).CornerRadius = UDim.new(0,10)
 
 	local label = Instance.new("TextLabel",frame)
 	label.Size = UDim2.new(1,0,0.4,0)
 	label.BackgroundTransparency = 1
-	label.Text = text.." : "..value
-	label.TextScaled = true
+	label.Text = text.." : "..SETTINGS[key]
 	label.TextColor3 = Color3.new(1,1,1)
+	label.TextScaled = true
 
 	local bar = Instance.new("Frame",frame)
-	bar.Size = UDim2.new(0.9,0,0,12)
+	bar.Size = UDim2.new(0.9,0,0,10)
 	bar.Position = UDim2.new(0.05,0,0.65,0)
 	bar.BackgroundColor3 = Color3.fromRGB(70,70,90)
 	Instance.new("UICorner",bar).CornerRadius = UDim.new(1,0)
 
 	local fill = Instance.new("Frame",bar)
-	fill.Size = UDim2.new((value-min)/(max-min),0,1,0)
+	fill.Size = UDim2.new((SETTINGS[key]-min)/(max-min),0,1,0)
 	fill.BackgroundColor3 = Color3.fromRGB(120,170,255)
 	Instance.new("UICorner",fill).CornerRadius = UDim.new(1,0)
 
-	local draggingSlider = false
+	local dragging = false
 
 	bar.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1
-		or input.UserInputType == Enum.UserInputType.Touch then
-			draggingSlider = true
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = true
 		end
 	end)
 
 	UIS.InputEnded:Connect(function()
-		draggingSlider = false
+		dragging = false
 	end)
 
 	UIS.InputChanged:Connect(function(input)
-		if draggingSlider then
+		if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
 			local percent = math.clamp(
 				(input.Position.X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X,
 				0,1
 			)
-			value = math.floor(min + (max-min)*percent)
-			SETTINGS[settingKey] = value
+			SETTINGS[key] = math.floor(min + (max-min)*percent)
 			fill.Size = UDim2.new(percent,0,1,0)
-			label.Text = text.." : "..value
+			label.Text = text.." : "..SETTINGS[key]
 		end
 	end)
 end
 
---====================================================
 -- UI 생성
---====================================================
-createToggle("Enable System","Enabled")
-createToggle("Trigger Bot","Trigger")
-createSlider("FOV Size",50,300,"FOV")
-createSlider("Smoothness",1,20,"Smoothness")
-createSlider("Distance Limit",50,1000,"Distance")
-
---====================================================
--- OPEN LOGIC
---====================================================
-local opened = false
-openBtn.MouseButton1Click:Connect(function()
-	opened = not opened
-	main.Visible = opened
-	openBtn.Text = opened and "CLOSE" or "OPEN"
-	TweenService:Create(blur,TweenInfo.new(0.3),{
-		Size = opened and 15 or 0
-	}):Play()
-end)
+createToggle("Aimbot","Aimbot")
+createToggle("ESP","ESP")
+createSlider("FOV","FOV",50,400)
 
 --====================================================
 -- FOV CIRCLE
@@ -229,40 +215,73 @@ circle.Filled = false
 circle.Visible = true
 
 --====================================================
--- AIM SYSTEM (부드러운 보간)
+-- ESP SYSTEM
+--====================================================
+local espObjects = {}
+
+local function createESP(plr)
+	local box = Drawing.new("Text")
+	box.Size = 13
+	box.Center = true
+	box.Outline = true
+	box.Color = Color3.new(1,1,1)
+	espObjects[plr] = box
+end
+
+for _,p in pairs(Players:GetPlayers()) do
+	if p ~= player then
+		createESP(p)
+	end
+end
+
+Players.PlayerAdded:Connect(function(p)
+	if p ~= player then
+		createESP(p)
+	end
+end)
+
+Players.PlayerRemoving:Connect(function(p)
+	if espObjects[p] then
+		espObjects[p]:Remove()
+	end
+end)
+
+--====================================================
+-- MAIN LOOP
 --====================================================
 RunService.RenderStepped:Connect(function()
+
 	circle.Position = Vector2.new(camera.ViewportSize.X/2,camera.ViewportSize.Y/2)
 	circle.Radius = SETTINGS.FOV
-
-	if not SETTINGS.Enabled then return end
 
 	local closest
 	local shortest = SETTINGS.FOV
 
-	for _,plr in pairs(Players:GetPlayers()) do
-		if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+	for plr,obj in pairs(espObjects) do
+		if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
 			local hrp = plr.Character.HumanoidRootPart
 			local pos,visible = camera:WorldToViewportPoint(hrp.Position)
-			if visible then
-				local dist2D = (Vector2.new(pos.X,pos.Y) - circle.Position).Magnitude
-				local dist3D = (hrp.Position - player.Character.HumanoidRootPart.Position).Magnitude
-				if dist2D < shortest and dist3D <= SETTINGS.Distance then
-					shortest = dist2D
+
+			if SETTINGS.ESP and visible and plr.Team ~= player.Team then
+				obj.Visible = true
+				obj.Position = Vector2.new(pos.X,pos.Y)
+				obj.Text = plr.Name
+			else
+				obj.Visible = false
+			end
+
+			if SETTINGS.Aimbot and visible and plr.Team ~= player.Team then
+				local dist = (Vector2.new(pos.X,pos.Y) - circle.Position).Magnitude
+				if dist < shortest then
+					shortest = dist
 					closest = hrp
 				end
 			end
 		end
 	end
 
-	if closest then
-		local targetCF = CFrame.new(camera.CFrame.Position, closest.Position)
-		camera.CFrame = camera.CFrame:Lerp(targetCF, SETTINGS.Smoothness/100)
-
-		if SETTINGS.Trigger then
-			mouse1press()
-			task.wait()
-			mouse1release()
-		end
+	if SETTINGS.Aimbot and closest then
+		local target = CFrame.new(camera.CFrame.Position, closest.Position)
+		camera.CFrame = camera.CFrame:Lerp(target, SETTINGS.Smoothness)
 	end
 end)
