@@ -1,32 +1,39 @@
---// =============================--
---        Panda Key System        --
---===============================--
+--// ============================--
+--     Panda Simple Key UI      --
+--==============================--
+
+-- 중복 실행 방지
+if getgenv().ZYROX_SIMPLE_AUTH then
+    return
+end
+getgenv().ZYROX_SIMPLE_AUTH = true
+
+--============================--
+--        Panda System        --
+--============================--
 
 local BaseURL = "https://new.pandadevelopment.net/api/v1"
 local Client_ServiceID = "zyroxkr"
 
--- Get Hardware ID
+local HttpService = game:GetService("HttpService")
+
+-- HWID
 local function getHardwareId()
     local success, hwid = pcall(gethwid)
     if success and hwid then
         return hwid
     end
 
-    local RbxAnalyticsService = game:GetService("RbxAnalyticsService")
-    local clientId = tostring(RbxAnalyticsService:GetClientId())
+    local clientId = tostring(game:GetService("RbxAnalyticsService"):GetClientId())
     return clientId:gsub("-", "")
 end
 
--- HTTP Request wrapper
+-- Request
 local function makeRequest(endpoint, body)
-    local HttpService = game:GetService("HttpService")
-
     local response = request({
         Url = BaseURL .. endpoint,
         Method = "POST",
-        Headers = {
-            ["Content-Type"] = "application/json"
-        },
+        Headers = {["Content-Type"] = "application/json"},
         Body = HttpService:JSONEncode(body)
     })
 
@@ -37,153 +44,153 @@ local function makeRequest(endpoint, body)
     return nil
 end
 
--- Get Key URL
-function GetKeyURL()
-    local hwid = getHardwareId()
-    return "https://new.pandadevelopment.net/getkey/" .. Client_ServiceID .. "?hwid=" .. hwid
-end
-
--- Copy Get Key URL
-function OpenGetKey()
-    local url = GetKeyURL()
-    if setclipboard then
-        setclipboard(url)
-    end
-    return url
-end
-
--- Validate Key (프리미엄 검사 제거)
-function Validate(key)
-    local hwid = getHardwareId()
-
+-- Validate
+local function Validate(key)
     local result = makeRequest("/keys/validate", {
         ServiceID = Client_ServiceID,
-        HWID = hwid,
+        HWID = getHardwareId(),
         Key = key
     })
 
     if not result then
-        return {
-            success = false,
-            message = "Failed to connect to server"
-        }
+        return false, "Server connection failed"
     end
 
-    local isAuthenticated = result.Authenticated_Status == "Success"
-
-    return {
-        success = isAuthenticated,
-        message = result.Note or (isAuthenticated and "Key validated!" or "Invalid key")
-    }
+    if result.Authenticated_Status == "Success" then
+        return true, "Key Valid"
+    else
+        return false, result.Note or "Invalid Key"
+    end
 end
 
+-- Get Key URL
+local function GetKeyURL()
+    return "https://new.pandadevelopment.net/getkey/" ..
+        Client_ServiceID .. "?hwid=" .. getHardwareId()
+end
 
 --============================--
---         Main Script        --
+--        Main Script         --
 --============================--
 
-local function RunMainScript()
+local function RunMain()
     print("hello")
     loadstring(game:HttpGet("https://raw.githubusercontent.com/minecrft100581/testscript/refs/heads/main/testscript2.lua"))()
 end
 
+--============================--
+--            UI              --
+--============================--
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "SimplePandaKeyUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = game.CoreGui
+
+local Frame = Instance.new("Frame")
+Frame.Size = UDim2.new(0, 320, 0, 190)
+Frame.Position = UDim2.new(0.5, -160, 0.5, -95)
+Frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+Frame.BorderSizePixel = 0
+Frame.Parent = ScreenGui
+
+Instance.new("UICorner", Frame).CornerRadius = UDim.new(0, 12)
+
+-- Title
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 40)
+Title.BackgroundTransparency = 1
+Title.Text = "Panda Key Authentication"
+Title.TextColor3 = Color3.new(1,1,1)
+Title.TextScaled = true
+Title.Parent = Frame
+
+-- Input
+local KeyBox = Instance.new("TextBox")
+KeyBox.Size = UDim2.new(0.85, 0, 0, 35)
+KeyBox.Position = UDim2.new(0.075, 0, 0.32, 0)
+KeyBox.PlaceholderText = "Enter your key..."
+KeyBox.Text = ""
+KeyBox.TextColor3 = Color3.new(1,1,1)
+KeyBox.BackgroundColor3 = Color3.fromRGB(45,45,45)
+KeyBox.BorderSizePixel = 0
+KeyBox.Parent = Frame
+
+Instance.new("UICorner", KeyBox).CornerRadius = UDim.new(0, 8)
+
+-- Status
+local Status = Instance.new("TextLabel")
+Status.Size = UDim2.new(1, 0, 0, 20)
+Status.Position = UDim2.new(0, 0, 0.55, 0)
+Status.BackgroundTransparency = 1
+Status.TextColor3 = Color3.fromRGB(255,80,80)
+Status.TextScaled = true
+Status.Text = ""
+Status.Parent = Frame
+
+-- Validate Button
+local ValidateBtn = Instance.new("TextButton")
+ValidateBtn.Size = UDim2.new(0.4, 0, 0, 35)
+ValidateBtn.Position = UDim2.new(0.1, 0, 0.7, 0)
+ValidateBtn.Text = "Validate"
+ValidateBtn.TextColor3 = Color3.new(1,1,1)
+ValidateBtn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+ValidateBtn.BorderSizePixel = 0
+ValidateBtn.Parent = Frame
+
+Instance.new("UICorner", ValidateBtn).CornerRadius = UDim.new(0, 8)
+
+-- Get Key Button
+local GetKeyBtn = Instance.new("TextButton")
+GetKeyBtn.Size = UDim2.new(0.4, 0, 0, 35)
+GetKeyBtn.Position = UDim2.new(0.5, 0, 0.7, 0)
+GetKeyBtn.Text = "Get Key"
+GetKeyBtn.TextColor3 = Color3.new(1,1,1)
+GetKeyBtn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+GetKeyBtn.BorderSizePixel = 0
+GetKeyBtn.Parent = Frame
+
+Instance.new("UICorner", GetKeyBtn).CornerRadius = UDim.new(0, 8)
 
 --============================--
---            Luna UI         --
+--        Button Logic        --
 --============================--
 
-local Luna = loadstring(game:HttpGet("https://raw.nebulasoftworks.xyz/luna", true))()
+ValidateBtn.MouseButton1Click:Connect(function()
 
-local Window = Luna:CreateWindow({
-    Name = "Authentication",
-    Subtitle = "Panda Key System",
-    LogoID = "6031097225",
-    LoadingEnabled = true,
-    LoadingTitle = "Luna Interface Suite",
-    LoadingSubtitle = "Authentication Required",
-    KeySystem = false
-})
-
--- 탭 1개만 생성
-local Tabs = {
-    Main = Window:CreateTab({
-        Name = "Key System",
-        Icon = "vpn_key",
-        ImageSource = "Material",
-        ShowTitle = true
-    })
-}
-
--- 섹션 1개
-Tabs.Main:CreateSection("Authentication Required")
-
--- 키 입력
-local Input = Tabs.Main:CreateInput({
-    Name = "Enter Key",
-    PlaceholderText = "PANDA-XXXX-XXXX-XXXX-XXXX",
-    CurrentValue = "",
-    Numeric = false,
-    MaxCharacters = nil,
-    Enter = false
-})
-
--- Validate 버튼
-Tabs.Main:CreateButton({
-    Name = "Validate Key",
-    Callback = function()
-
-        if KeyInput.Value == "" then
-            Luna:Notification({
-                Title = "Error",
-                Icon = "error",
-                ImageSource = "Material",
-                Content = "Please enter a key first."
-            })
-            return
-        end
-
-        local result = Validate(KeyInput.Value)
-
-        if not result.success then
-            -- 실패 → 재입력 가능
-            Luna:Notification({
-                Title = "Access Denied",
-                Icon = "error",
-                ImageSource = "Material",
-                Content = result.message
-            })
-            return
-        end
-
-        -- 성공
-        Luna:Notification({
-            Title = "Access Granted",
-            Icon = "check_circle",
-            ImageSource = "Material",
-            Content = "Authentication Successful"
-        })
-
-        task.wait(0.8)
-
-        RunMainScript()
-        Luna:Destroy()
+    if KeyBox.Text == "" then
+        Status.Text = "Please enter a key."
+        return
     end
-})
 
--- Get Key 버튼
-Tabs.Main:CreateButton({
-    Name = "Get Key (Copy Link)",
-    Callback = function()
+    Status.Text = "Validating..."
 
-        local url = OpenGetKey()
+    local success, message = Validate(KeyBox.Text)
 
-        Luna:Notification({
-            Title = "Key URL Copied",
-            Icon = "content_copy",
-            ImageSource = "Material",
-            Content = "Key link copied to clipboard."
-        })
-
-        print("Get your key at: " .. url)
+    if not success then
+        Status.Text = message
+        return
     end
-})
+
+    Status.TextColor3 = Color3.fromRGB(100,255,100)
+    Status.Text = "Authentication Successful!"
+
+    task.wait(0.8)
+
+    ScreenGui:Destroy()
+    RunMain()
+end)
+
+GetKeyBtn.MouseButton1Click:Connect(function()
+
+    local url = GetKeyURL()
+
+    if setclipboard then
+        setclipboard(url)
+    end
+
+    Status.TextColor3 = Color3.fromRGB(100,255,100)
+    Status.Text = "Key link copied to clipboard!"
+
+    print("Get your key at:", url)
+end)
