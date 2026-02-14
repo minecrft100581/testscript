@@ -24,20 +24,15 @@ end
 local Camera = GetCamera()
 
 --// =========================
---// LOAD LUNA
---// =========================
-
-local Luna = loadstring(game:HttpGet("https://raw.nebulasoftworks.xyz/luna"))()
-
---// =========================
 --// SETTINGS
 --// =========================
 
 local Settings = {
+
     -- Legit
     Aimbot = false,
     AimPart = "Head",
-    Smoothness = 0.15,
+    Smoothness = 0.18,
     FOV = 150,
     MaxDistance = 1000,
 
@@ -47,158 +42,49 @@ local Settings = {
     -- ESP
     ESP = false,
     ESPColor = Color3.fromRGB(255,0,0),
-    ESPRainbow = false,
 
     TeamCheck = false,
     VisibleCheck = false,
 
     -- Rage
     Ragebot = false,
-    RageTargetMode = "All",
-    RageCustomName = "",
-
     RageFOV = 300,
-    RageFOVColor = Color3.fromRGB(255,50,50),
-    RageFOVVisible = true,
 
     AutoHeadshot = true,
     HeadshotDistance = 250,
 
     -- Silent Aim
     SilentAim = false,
-    HitChance = 100, -- %
+    HitChance = 100,
+
+    -- Humanized
+    Humanize = false,
+    HumanizeStrength = 0.55,
+    ReactionTime = 0.07,
+
+    -- Recoil
+    RecoilControl = false,
+    RecoilStrength = 0.65,
+    RecoilRandom = 0.25,
 }
 
 --// =========================
---// UI ELEMENTS
+--// AIM POSITION
 --// =========================
 
-Tabs.Main:CreateSection("Aimbot")
+local IsMobile = UIS.TouchEnabled and not UIS.KeyboardEnabled
 
-Tabs.Main:CreateToggle({
-    Name = "Enable Aimbot",
-    CurrentValue = false,
-    Callback = function(v)
-        Settings.Aimbot = v
+local function GetAimPosition()
+    if IsMobile then
+        local v = Camera.ViewportSize
+        return Vector2.new(v.X/2, v.Y/2)
+    else
+        return UIS:GetMouseLocation()
     end
-})
-
-Tabs.Main:CreateDropdown({
-    Name = "Aim Part",
-    Options = {"Head","HumanoidRootPart"},
-    CurrentOption = "Head",
-    MultipleOptions = false,
-    Callback = function(v)
-        Settings.AimPart = v
-    end
-})
-
-Tabs.Main:CreateSlider({
-    Name = "Smoothness",
-    Range = {0.01,1},
-    Increment = 0.01,
-    CurrentValue = 0.15,
-    Callback = function(v)
-        Settings.Smoothness = v
-    end
-})
-
-Tabs.Main:CreateSlider({
-    Name = "Max Distance",
-    Range = {50,3000},
-    Increment = 10,
-    CurrentValue = 1000,
-    Callback = function(v)
-        Settings.MaxDistance = v
-    end
-})
-
-Tabs.Main:CreateSection("FOV")
-
-Tabs.Main:CreateSlider({
-    Name = "FOV Size",
-    Range = {50,500},
-    Increment = 1,
-    CurrentValue = 150,
-    Callback = function(v)
-        Settings.FOV = v
-    end
-})
-
-Tabs.Main:CreateColorPicker({
-    Name = "FOV Color",
-    Color = Settings.FOVColor,
-    Callback = function(v)
-        Settings.FOVColor = v
-    end
-})
-
-Tabs.Main:CreateToggle({
-    Name = "FOV Rainbow",
-    CurrentValue = false,
-    Callback = function(v)
-        Settings.FOVRainbow = v
-    end
-})
-
-Tabs.Main:CreateSection("ESP")
-
-Tabs.Main:CreateToggle({
-    Name = "Enable ESP",
-    CurrentValue = false,
-    Callback = function(v)
-        Settings.ESP = v
-    end
-})
-
-Tabs.Main:CreateColorPicker({
-    Name = "ESP Color",
-    Color = Settings.ESPColor,
-    Callback = function(v)
-        Settings.ESPColor = v
-    end
-})
-
-Tabs.Main:CreateSection("Checks")
-
-Tabs.Main:CreateToggle({
-    Name = "Team Check",
-    CurrentValue = false,
-    Callback = function(v)
-        Settings.TeamCheck = v
-    end
-})
-
-Tabs.Main:CreateToggle({
-    Name = "Visible Check",
-    CurrentValue = false,
-    Callback = function(v)
-        Settings.VisibleCheck = v
-    end
-})
-
-Tabs.Main:CreateSection("Silent Aim")
-
-Tabs.Main:CreateToggle({
-    Name = "Enable Silent Aim",
-    CurrentValue = false,
-    Callback = function(v)
-        Settings.SilentAim = v
-    end
-})
-
-Tabs.Main:CreateSlider({
-    Name = "Hit Chance %",
-    Range = {0,100},
-    Increment = 1,
-    CurrentValue = 100,
-    Callback = function(v)
-        Settings.HitChance = v
-    end
-})
+end
 
 --// =========================
---// FOV GUI (반응형)
+--// FOV GUI
 --// =========================
 
 local FOVGui = Instance.new("ScreenGui")
@@ -216,77 +102,97 @@ UICorner.CornerRadius = UDim.new(1,0)
 local UIStroke = Instance.new("UIStroke", FOVCircle)
 UIStroke.Thickness = 2
 
-local IsMobile = UIS.TouchEnabled and not UIS.KeyboardEnabled
-
-local function GetAimPosition()
-    if IsMobile then
-        local v = Camera.ViewportSize
-        return Vector2.new(v.X/2, v.Y/2)
-    else
-        return UIS:GetMouseLocation()
-    end
-end
-
 --// =========================
---// ESP SYSTEM (Highlight 기반)
+--// ESP SYSTEM (리스폰 대응)
 --// =========================
 
 local ESPContainer = {}
 
+local function RemoveESP(player)
+    if ESPContainer[player] then
+        ESPContainer[player]:Destroy()
+        ESPContainer[player] = nil
+    end
+end
+
+local function CreateESP(player, character)
+
+    RemoveESP(player)
+
+    local hl = Instance.new("Highlight")
+    hl.FillTransparency = 0.5
+    hl.OutlineTransparency = 0
+    hl.Parent = character
+
+    ESPContainer[player] = hl
+end
+
 local function UpdateESP()
-    for _,player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
 
-            if Settings.TeamCheck and player.Team == LocalPlayer.Team then
-                continue
+    for _, player in ipairs(Players:GetPlayers()) do
+
+        if player == LocalPlayer then continue end
+
+        if Settings.TeamCheck and player.Team == LocalPlayer.Team then
+            RemoveESP(player)
+            continue
+        end
+
+        local char = player.Character
+        if not char then continue end
+
+        if Settings.ESP then
+
+            if not ESPContainer[player] then
+                CreateESP(player, char)
             end
 
-            local char = player.Character
-            if not char then continue end
+            local hl = ESPContainer[player]
 
-            if Settings.ESP then
-                if not ESPContainer[player] then
-                    local hl = Instance.new("Highlight")
-                    hl.FillTransparency = 0.5
-                    hl.OutlineTransparency = 0
-                    hl.Parent = char
-                    ESPContainer[player] = hl
-                end
-
-                ESPContainer[player].FillColor = Settings.ESPColor
-                ESPContainer[player].OutlineColor = Settings.ESPColor
-                ESPContainer[player].Enabled = true
-            else
-                if ESPContainer[player] then
-                    ESPContainer[player]:Destroy()
-                    ESPContainer[player] = nil
-                end
+            if hl then
+                hl.FillColor = Settings.ESPColor
+                hl.OutlineColor = Settings.ESPColor
+                hl.Enabled = true
             end
+
+        else
+            RemoveESP(player)
         end
     end
 end
 
-Players.PlayerRemoving:Connect(function(plr)
-    if ESPContainer[plr] then
-        ESPContainer[plr]:Destroy()
-        ESPContainer[plr] = nil
-    end
+Players.PlayerAdded:Connect(function(plr)
+    plr.CharacterAdded:Connect(function(char)
+        task.wait(0.1)
+        if Settings.ESP then
+            CreateESP(plr, char)
+        end
+    end)
 end)
+
+Players.PlayerRemoving:Connect(RemoveESP)
 
 --// =========================
 --// VISIBILITY
 --// =========================
 
 local function IsVisible(part)
-    if not Settings.VisibleCheck then return true end
-    if not LocalPlayer.Character then return false end
+
+    if not Settings.VisibleCheck then
+        return true
+    end
+
+    if not LocalPlayer.Character then
+        return false
+    end
 
     local origin = Camera.CFrame.Position
-    local direction = part.Position - origin
+    local direction = (part.Position - origin)
 
     local params = RaycastParams.new()
     params.FilterDescendantsInstances = {LocalPlayer.Character}
     params.FilterType = Enum.RaycastFilterType.Blacklist
+    params.IgnoreWater = true
 
     local result = workspace:Raycast(origin, direction, params)
 
@@ -298,87 +204,8 @@ local function IsVisible(part)
 end
 
 --// =========================
---// TARGET FINDER
+--// BEST PART
 --// =========================
-
-local function GetClosestTarget()
-    local closest = nil
-    local shortest = Settings.FOV
-    local aimPos = GetAimPosition()
-
-    for _,player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-
-            if Settings.TeamCheck and player.Team == LocalPlayer.Team then
-                continue
-            end
-
-            local char = player.Character
-            if not char then continue end
-
-            local root = char:FindFirstChild("HumanoidRootPart")
-            local part = char:FindFirstChild(Settings.AimPart)
-
-            if not root or not part then continue end
-
-            if (root.Position - Camera.CFrame.Position).Magnitude > Settings.MaxDistance then
-                continue
-            end
-
-            local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
-            if not onScreen then continue end
-
-            local dist = (Vector2.new(screenPos.X,screenPos.Y) - aimPos).Magnitude
-
-            if dist < shortest and IsVisible(part) then
-                shortest = dist
-                closest = part
-            end
-        end
-    end
-
-    return closest
-end
-
---// =========================
---// MAIN LOOP
---// =========================
-
-RunService.RenderStepped:Connect(function()
-
-    UpdateESP()
-
-    -- Rainbow
-    local hue = tick() % 5 / 5
-    local rainbow = Color3.fromHSV(hue,1,1)
-
-    UIStroke.Color = Settings.FOVRainbow and rainbow or Settings.FOVColor
-
-    -- FOV
-    local aimPos = GetAimPosition()
-    FOVCircle.Position = UDim2.fromOffset(aimPos.X, aimPos.Y)
-    FOVCircle.Size = UDim2.fromOffset(Settings.FOV*2, Settings.FOV*2)
-
-    -- Aimbot
-    if Settings.Aimbot then
-        local target = GetClosestTarget()
-        if target then
-            local newCF = CFrame.new(Camera.CFrame.Position, target.Position)
-            Camera.CFrame = Camera.CFrame:Lerp(newCF, Settings.Smoothness)
-        end
-    end
-
-end)
-
---// ========================
---// HIT CHANCE
---===========================
-
-local function RollHitChance()
-    return math.random(0,100) <= Settings.HitChance
-end
-
--- AUTO HEADSHOT
 
 local function GetBestPart(character)
 
@@ -395,20 +222,67 @@ local function GetBestPart(character)
         else
             return root
         end
-    else
-        return character:FindFirstChild(Settings.AimPart)
     end
+
+    return character:FindFirstChild(Settings.AimPart)
 end
 
--- Silent aim target finder
+--// =========================
+--// CLOSEST TARGET
+--// =========================
 
-local function GetSilentTarget()
+local function GetClosestTarget()
 
     local closest = nil
     local shortest = Settings.FOV
+    local aimPos = GetAimPosition()
+
+    for _, player in ipairs(Players:GetPlayers()) do
+
+        if player == LocalPlayer then continue end
+
+        if Settings.TeamCheck and player.Team == LocalPlayer.Team then
+            continue
+        end
+
+        local char = player.Character
+        if not char then continue end
+
+        local root = char:FindFirstChild("HumanoidRootPart")
+        local part = char:FindFirstChild(Settings.AimPart)
+
+        if not root or not part then continue end
+
+        local dist3D = (root.Position - Camera.CFrame.Position).Magnitude
+        if dist3D > Settings.MaxDistance then continue end
+
+        local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
+        if not onScreen then continue end
+
+        if not IsVisible(part) then continue end
+
+        local dist2D = (Vector2.new(screenPos.X, screenPos.Y) - aimPos).Magnitude
+
+        if dist2D < shortest then
+            shortest = dist2D
+            closest = part
+        end
+    end
+
+    return closest
+end
+
+--// =========================
+--// RAGE TARGET
+--// =========================
+
+local function GetRageTarget()
+
+    local closest = nil
+    local shortest = Settings.RageFOV
     local center = GetAimPosition()
 
-    for _,player in ipairs(Players:GetPlayers()) do
+    for _, player in ipairs(Players:GetPlayers()) do
 
         if player == LocalPlayer then continue end
 
@@ -427,7 +301,7 @@ local function GetSilentTarget()
         local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
         if not onScreen then continue end
 
-        local dist = (Vector2.new(screenPos.X,screenPos.Y) - center).Magnitude
+        local dist = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
 
         if dist < shortest then
             shortest = dist
@@ -438,7 +312,126 @@ local function GetSilentTarget()
     return closest
 end
 
---silent aim hook
+--// =========================
+--// HUMANIZED AIM
+--// =========================
+
+local LastAimTime = 0
+
+local function ApplyHumanizedAim(targetCF, smoothness)
+
+    if not Settings.Humanize then
+        return Camera.CFrame:Lerp(targetCF, smoothness)
+    end
+
+    local now = tick()
+
+    -- Reaction delay
+    if now - LastAimTime < Settings.ReactionTime then
+        return Camera.CFrame
+    end
+
+    LastAimTime = now
+
+    local strength = Settings.HumanizeStrength
+
+    -- micro offset
+    local offsetX = (math.random() - 0.5) * 0.02 * strength
+    local offsetY = (math.random() - 0.5) * 0.02 * strength
+
+    local offset = CFrame.Angles(offsetY, offsetX, 0)
+
+    local goal = targetCF * offset
+
+    -- dynamic smooth
+    local dynamicSmooth = smoothness * (0.5 + math.random() * 0.5)
+
+    return Camera.CFrame:Lerp(goal, dynamicSmooth)
+end
+
+--// =========================
+--// RECOIL CONTROL
+--// =========================
+
+local LastCameraCF = Camera.CFrame
+
+local function ApplyRecoilControl()
+
+    if not Settings.RecoilControl then
+        LastCameraCF = Camera.CFrame
+        return
+    end
+
+    local current = Camera.CFrame
+    local delta = LastCameraCF:ToObjectSpace(current)
+
+    local rx, ry, rz = delta:ToOrientation()
+
+    local strength = Settings.RecoilStrength
+    local randomFactor = 1 + ((math.random() - 0.5) * Settings.RecoilRandom)
+
+    local compensation = CFrame.Angles(
+        -rx * strength * randomFactor,
+        -ry * strength * randomFactor,
+        0
+    )
+
+    Camera.CFrame = Camera.CFrame * compensation
+
+    LastCameraCF = Camera.CFrame
+end
+
+--// =========================
+--// HIT CHANCE
+--// =========================
+
+local function RollHitChance()
+    return math.random(0,100) <= Settings.HitChance
+end
+
+--// =========================
+--// SILENT TARGET
+--// =========================
+
+local function GetSilentTarget()
+
+    local closest = nil
+    local shortest = Settings.FOV
+    local center = GetAimPosition()
+
+    for _, player in ipairs(Players:GetPlayers()) do
+
+        if player == LocalPlayer then continue end
+
+        if Settings.TeamCheck and player.Team == LocalPlayer.Team then
+            continue
+        end
+
+        local char = player.Character
+        if not char then continue end
+
+        local part = GetBestPart(char)
+        if not part then continue end
+
+        if not IsVisible(part) then continue end
+
+        local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
+        if not onScreen then continue end
+
+        local dist = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
+
+        if dist < shortest then
+            shortest = dist
+            closest = part
+        end
+    end
+
+    return closest
+end
+
+--// =========================
+--// SILENT AIM HOOK
+--// =========================
 
 local Mouse = LocalPlayer:GetMouse()
 
@@ -457,32 +450,46 @@ OldIndex = hookmetamethod(game, "__index", function(self, key)
     return OldIndex(self, key)
 end)
 
---ragebot aimbot 우선순위
+--// =========================
+--// MAIN LOOP
+--// =========================
 
-if Settings.Ragebot then
+RunService.RenderStepped:Connect(function()
 
-    local target = GetRageTarget()
+    UpdateESP()
 
-    if target then
-        Camera.CFrame = CFrame.new(Camera.CFrame.Position, target.Position)
+    -- Rainbow
+    local hue = tick() % 5 / 5
+    local rainbow = Color3.fromHSV(hue,1,1)
+
+    UIStroke.Color = Settings.FOVRainbow and rainbow or Settings.FOVColor
+
+    local aimPos = GetAimPosition()
+
+    FOVCircle.Position = UDim2.fromOffset(aimPos.X, aimPos.Y)
+    FOVCircle.Size = UDim2.fromOffset(Settings.FOV * 2, Settings.FOV * 2)
+
+    -- Ragebot 우선
+    if Settings.Ragebot then
+
+        local target = GetRageTarget()
+
+        if target then
+            local targetCF = CFrame.new(Camera.CFrame.Position, target.Position)
+            Camera.CFrame = ApplyHumanizedAim(targetCF, 1)
+        end
+
+    elseif Settings.Aimbot then
+
+        local target = GetClosestTarget()
+
+        if target then
+            local targetCF = CFrame.new(Camera.CFrame.Position, target.Position)
+            Camera.CFrame = ApplyHumanizedAim(targetCF, Settings.Smoothness)
+        end
     end
 
-elseif Settings.Aimbot then
+    -- Recoil 마지막 적용
+    ApplyRecoilControl()
 
-    local target = GetClosestTarget()
-
-    if target then
-        local newCF = CFrame.new(Camera.CFrame.Position, target.Position)
-        Camera.CFrame = Camera.CFrame:Lerp(newCF, Settings.Smoothness)
-    end
-
-end
-
---ragebot fov circle
-
-local aimPos = GetAimPosition()
-
-RageCircle.Visible = Settings.Ragebot and Settings.RageFOVVisible
-RageCircle.Position = UDim2.fromOffset(aimPos.X, aimPos.Y)
-RageCircle.Size = UDim2.fromOffset(Settings.RageFOV*2, Settings.RageFOV*2)
-RageStroke.Color = Settings.RageFOVColor
+end)
