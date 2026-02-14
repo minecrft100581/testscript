@@ -291,11 +291,6 @@ pcall(function()
         if self == Mouse and key == "Hit" and Settings.SilentAim then
             local target = GetClosestTarget()
             if target and math.random(0,100) <= Settings.HitChance then
-                if Settings.Ragebot then
-                    local angle = tick() * 5
-                    local offset = Vector3.new(math.sin(angle) * Settings.CircleRadius, 0, math.cos(angle) * Settings.CircleRadius)
-                    return CFrame.new(target.Position + offset)
-                end
                 return target.CFrame
             end
         end
@@ -324,7 +319,11 @@ RunService.RenderStepped:Connect(function()
         if Settings.Ragebot then
             local angle = tick() * 5
             local offset = Vector3.new(math.sin(angle) * Settings.CircleRadius, 0, math.cos(angle) * Settings.CircleRadius)
-            aimPoint = target.Position + offset
+            local position = target.Position + offset
+            local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if root then
+                root.CFrame = CFrame.new(position, target.Position)
+            end
         end
         local cf = CFrame.new(Camera.CFrame.Position, aimPoint)
         Camera.CFrame = ApplyHuman(cf, Settings.Smoothness)
