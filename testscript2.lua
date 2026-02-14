@@ -32,6 +32,7 @@ local Tabs = {
     Main = Window:CreateTab({ Name = "Main" }),
     Visual = Window:CreateTab({ Name = "Visual" }),
     Combat = Window:CreateTab({ Name = "Combat" }),
+    Movement = Window:CreateTab({ Name = "Movement" }),
 }
 --// =========================
 --// SETTINGS
@@ -65,6 +66,19 @@ local Settings = {
     RecoilRandom = 0.25,
     -- Circle
     CircleRadius = 5,
+    -- Movement
+    Speed = false,
+    SpeedValue = 50,
+    Fly = false,
+    FlySpeed = 50,
+    -- Anti-Aim
+    Backtrack = false,
+    Desync = false,
+    -- Target Mode
+    TargetMode = "All",
+    -- Rainbow
+    TargetRainbow = false,
+    HealthRainbow = false,
 }
 --// =========================
 --// UI
@@ -88,6 +102,12 @@ Tabs.Main:CreateToggle({
 Tabs.Main:CreateToggle({
     Name = "Visible Check",
     Callback = function(v) Settings.VisibleCheck = v end
+})
+Tabs.Main:CreateDropdown({
+    Name = "Target Mode",
+    Options = {"All", "Enemies", "Teammates"},
+    CurrentOption = "All",
+    Callback = function(v) Settings.TargetMode = v end
 })
 Tabs.Main:CreateSlider({
     Name = "Smoothness",
@@ -127,6 +147,14 @@ Tabs.Visual:CreateToggle({
     Name = "ESP Rainbow",
     Callback = function(v) Settings.ESPRainbow = v end
 })
+Tabs.Visual:CreateToggle({
+    Name = "Target Rainbow",
+    Callback = function(v) Settings.TargetRainbow = v end
+})
+Tabs.Visual:CreateToggle({
+    Name = "Health Rainbow",
+    Callback = function(v) Settings.HealthRainbow = v end
+})
 Tabs.Combat:CreateToggle({
     Name = "Humanized Aim",
     Callback = function(v) Settings.Humanize = v end
@@ -149,6 +177,36 @@ Tabs.Combat:CreateSlider({
     CurrentValue = Settings.CircleRadius,
     Callback = function(v) Settings.CircleRadius = v end
 })
+Tabs.Combat:CreateToggle({
+    Name = "Backtrack",
+    Callback = function(v) Settings.Backtrack = v end
+})
+Tabs.Combat:CreateToggle({
+    Name = "Desync",
+    Callback = function(v) Settings.Desync = v end
+})
+Tabs.Movement:CreateToggle({
+    Name = "Speed",
+    Callback = function(v) Settings.Speed = v end
+})
+Tabs.Movement:CreateSlider({
+    Name = "Speed Value",
+    Range = {16,100},
+    Increment = 1,
+    CurrentValue = Settings.SpeedValue,
+    Callback = function(v) Settings.SpeedValue = v end
+})
+Tabs.Movement:CreateToggle({
+    Name = "Fly",
+    Callback = function(v) Settings.Fly = v end
+})
+Tabs.Movement:CreateSlider({
+    Name = "Fly Speed",
+    Range = {10,200},
+    Increment = 1,
+    CurrentValue = Settings.FlySpeed,
+    Callback = function(v) Settings.FlySpeed = v end
+})
 --// =========================
 --// FOV GUI
 --// =========================
@@ -170,7 +228,7 @@ local TargetGui = Instance.new("ScreenGui")
 TargetGui.ResetOnSpawn = false
 TargetGui.Parent = CoreGui
 local TargetFrame = Instance.new("Frame")
-TargetFrame.Size = UDim2.new(0, 200, 0, 100)
+TargetFrame.Size = UDim2.new(0, 200, 0, 180)
 TargetFrame.Position = UDim2.new(1, -210, 0, 10)
 TargetFrame.BackgroundColor3 = Color3.new(0,0,0)
 TargetFrame.BackgroundTransparency = 0.5
@@ -197,6 +255,27 @@ HealthLabel.BackgroundTransparency = 1
 HealthLabel.TextColor3 = Color3.new(1,1,1)
 HealthLabel.Text = "Health: "
 HealthLabel.Parent = TargetFrame
+local HealthBar = Instance.new("Frame")
+HealthBar.Size = UDim2.new(1, 0, 0, 20)
+HealthBar.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+HealthBar.Parent = TargetFrame
+local HealthFill = Instance.new("Frame")
+HealthFill.AnchorPoint = Vector2.new(0, 0)
+HealthFill.Size = UDim2.new(0, 0, 1, 0)
+HealthFill.BackgroundColor3 = Color3.new(0, 1, 0)
+HealthFill.Parent = HealthBar
+local DistanceLabel = Instance.new("TextLabel")
+DistanceLabel.Size = UDim2.new(1, 0, 0, 30)
+DistanceLabel.BackgroundTransparency = 1
+DistanceLabel.TextColor3 = Color3.new(1,1,1)
+DistanceLabel.Text = "Distance: "
+DistanceLabel.Parent = TargetFrame
+local WeaponLabel = Instance.new("TextLabel")
+WeaponLabel.Size = UDim2.new(1, 0, 0, 30)
+WeaponLabel.BackgroundTransparency = 1
+WeaponLabel.TextColor3 = Color3.new(1,1,1)
+WeaponLabel.Text = "Weapon: "
+WeaponLabel.Parent = TargetFrame
 --// =========================
 --// AIM POSITION
 --// =========================
@@ -267,7 +346,10 @@ local function GetClosestTarget()
     if not root then return end
     for _, player in ipairs(Players:GetPlayers()) do
         if player == LocalPlayer then continue end
-        if Settings.TeamCheck and player.Team == LocalPlayer.Team then continue end
+        local sameTeam = player.Team == LocalPlayer.Team
+        if Settings.TargetMode == "Enemies" and sameTeam then continue end
+        if Settings.TargetMode == "Teammates" and not sameTeam then continue end
+        if Settings.TeamCheck and sameTeam then continue end
         local char = player.Character
         if not char then continue end
         local part = GetBestPart(char)
@@ -338,6 +420,69 @@ pcall(function()
     end)
 end)
 --// =========================
+--// MOVEMENT
+--// =========================
+local FlyBV
+local function UpdateMovement()
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        if Settings.Speed then
+            hum.WalkSpeed = Settings.SpeedValue
+        else
+            hum.WalkSpeed = 16
+        end
+    end
+    if Settings.Fly then
+        if not FlyBV then
+            FlyBV = Instance.new("BodyVelocity")
+            FlyBV.Velocity = Vector3.new(0,0,0)
+            FlyBV.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+            FlyBV.Parent = char:FindFirstChild("HumanoidRootPart")
+        end
+        local dir = Vector3.new(0,0,0)
+        if UIS:IsKeyDown(Enum.KeyCode.W) then dir += Camera.CFrame.LookVector end
+        if UIS:IsKeyDown(Enum.KeyCode.S) then dir -= Camera.CFrame.LookVector end
+        if UIS:IsKeyDown(Enum.KeyCode.A) then dir -= Camera.CFrame.RightVector end
+        if UIS:IsKeyDown(Enum.KeyCode.D) then dir += Camera.CFrame.RightVector end
+        if UIS:IsKeyDown(Enum.KeyCode.Space) then dir += Vector3.new(0,1,0) end
+        if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then dir -= Vector3.new(0,1,0) end
+        FlyBV.Velocity = dir * Settings.FlySpeed
+    elseif FlyBV then
+        FlyBV:Destroy()
+        FlyBV = nil
+    end
+end
+--// =========================
+--// ANTI-AIM
+--// =========================
+local BacktrackParts = {}
+local function UpdateAntiAim()
+    local char = LocalPlayer.Character
+    if not char then return end
+    if Settings.Backtrack then
+        -- Simple backtrack simulation: create fake parts
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if root then
+            local fake = BacktrackParts[root] or Instance.new("Part")
+            fake.Size = root.Size
+            fake.CFrame = root.CFrame
+            fake.Transparency = 0.5
+            fake.Parent = workspace
+            BacktrackParts[root] = fake
+            task.delay(0.1, function() fake:Destroy() end)
+        end
+    end
+    if Settings.Desync then
+        -- Simple desync: offset root
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if root then
+            root.CFrame = root.CFrame * CFrame.new(math.sin(tick()*10)*2, 0, 0)
+        end
+    end
+end
+--// =========================
 --// MAIN LOOP
 --// =========================
 RunService.RenderStepped:Connect(function()
@@ -356,12 +501,14 @@ RunService.RenderStepped:Connect(function()
     end
     if target then
         local aimPoint = target.Position
-        if Settings.Ragebot then
-            local angle = tick() * 5
-            local offset = Vector3.new(math.sin(angle) * Settings.CircleRadius, 0, math.cos(angle) * Settings.CircleRadius)
-            local position = target.Position + offset
-            local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-            if root then
+        local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if root then
+            local distance = (root.Position - target.Position).Magnitude
+            DistanceLabel.Text = "Distance: " .. math.floor(distance)
+            if Settings.Ragebot then
+                local angle = tick() * 5
+                local offset = Vector3.new(math.sin(angle) * Settings.CircleRadius, 0, math.cos(angle) * Settings.CircleRadius)
+                local position = target.Position + offset
                 root.CFrame = CFrame.new(position, target.Position)
             end
         end
@@ -376,11 +523,23 @@ RunService.RenderStepped:Connect(function()
             local hum = char:FindFirstChildOfClass("Humanoid")
             if hum then
                 HealthLabel.Text = "Health: " .. math.floor(hum.Health) .. "/" .. hum.MaxHealth
+                local healthPct = hum.Health / hum.MaxHealth
+                HealthFill.Size = UDim2.new(healthPct, 0, 1, 0)
+                HealthFill.BackgroundColor3 = Settings.HealthRainbow and rainbow or Color3.new(0,1,0)
             end
+            local equipped = char:FindFirstChildOfClass("Tool")
+            if equipped then
+                WeaponLabel.Text = "Weapon: " .. equipped.Name
+            else
+                WeaponLabel.Text = "Weapon: None"
+            end
+            TargetFrame.BackgroundColor3 = Settings.TargetRainbow and rainbow or Color3.new(0,0,0)
             TargetFrame.Visible = true
         end
     else
         TargetFrame.Visible = false
     end
     ApplyRecoil()
+    UpdateMovement()
+    UpdateAntiAim()
 end)
