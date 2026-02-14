@@ -85,16 +85,12 @@ end
 
 local function RunFree()
     print("Free Key Loaded")
-    loadstring(game:HttpGet(
-        "https://raw.githubusercontent.com/minecrft100581/testscript/refs/heads/main/testscript2.lua"
-    ))()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/minecrft100581/testscript/refs/heads/main/testscript2.lua"))()
 end
 
 local function RunPremium()
     print("Premium Key Loaded")
-    loadstring(game:HttpGet(
-        "https://raw.githubusercontent.com/minecrft100581/testscript/refs/heads/main/testscript3.lua"
-    ))()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/minecrft100581/testscript/refs/heads/main/testscript3.lua"))()
 end
 
 --============================--
