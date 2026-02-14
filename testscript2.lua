@@ -23,8 +23,8 @@ local Camera = GetCamera()
 --// =========================
 local Luna = loadstring(game:HttpGet("https://raw.nebulasoftworks.xyz/luna"))()
 local Window = Luna:CreateWindow({
-    Name = "Mobile Universal",
-    Subtitle = "Mobile Universal script",
+    Name = "Real Cheat Simulator",
+    Subtitle = "99.99% Realism",
     LogoID = "rbxassetid://7733960981",
     LoadingEnabled = false,
 })
@@ -62,6 +62,8 @@ local Settings = {
     RecoilControl = false,
     RecoilStrength = 0.65,
     RecoilRandom = 0.25,
+    -- Circle
+    CircleRadius = 5,
 }
 --// =========================
 --// UI
@@ -100,6 +102,13 @@ Tabs.Main:CreateSlider({
     CurrentValue = Settings.FOV,
     Callback = function(v) Settings.FOV = v end
 })
+Tabs.Main:CreateSlider({
+    Name = "Max Distance",
+    Range = {100,5000},
+    Increment = 100,
+    CurrentValue = Settings.MaxDistance,
+    Callback = function(v) Settings.MaxDistance = v end
+})
 Tabs.Visual:CreateToggle({
     Name = "ESP",
     Callback = function(v) Settings.ESP = v end
@@ -127,6 +136,13 @@ Tabs.Combat:CreateSlider({
     Increment = 1,
     CurrentValue = Settings.HitChance,
     Callback = function(v) Settings.HitChance = v end
+})
+Tabs.Combat:CreateSlider({
+    Name = "Circle Radius",
+    Range = {1,20},
+    Increment = 1,
+    CurrentValue = Settings.CircleRadius,
+    Callback = function(v) Settings.CircleRadius = v end
 })
 --// =========================
 --// FOV GUI
@@ -205,8 +221,10 @@ local function IsVisible(part, char)
 end
 local function GetClosestTarget()
     local closest
-    local shortest = Settings.FOV
+    local shortest = Settings.Ragebot and Settings.RageFOV or Settings.FOV
     local center = GetAimPosition()
+    local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
     for _, player in ipairs(Players:GetPlayers()) do
         if player == LocalPlayer then continue end
         if Settings.TeamCheck and player.Team == LocalPlayer.Team then continue end
@@ -214,6 +232,8 @@ local function GetClosestTarget()
         if not char then continue end
         local part = GetBestPart(char)
         if not part then continue end
+        local distance = (root.Position - part.Position).Magnitude
+        if distance > Settings.MaxDistance then continue end
         local screen, onScreen = Camera:WorldToViewportPoint(part.Position)
         if not onScreen then continue end
         local dist = (Vector2.new(screen.X, screen.Y) - center).Magnitude
@@ -271,6 +291,11 @@ pcall(function()
         if self == Mouse and key == "Hit" and Settings.SilentAim then
             local target = GetClosestTarget()
             if target and math.random(0,100) <= Settings.HitChance then
+                if Settings.Ragebot then
+                    local angle = tick() * 5
+                    local offset = Vector3.new(math.sin(angle) * Settings.CircleRadius, 0, math.cos(angle) * Settings.CircleRadius)
+                    return CFrame.new(target.Position + offset)
+                end
                 return target.CFrame
             end
         end
@@ -295,7 +320,13 @@ RunService.RenderStepped:Connect(function()
         target = GetClosestTarget()
     end
     if target then
-        local cf = CFrame.new(Camera.CFrame.Position, target.Position)
+        local aimPoint = target.Position
+        if Settings.Ragebot then
+            local angle = tick() * 5
+            local offset = Vector3.new(math.sin(angle) * Settings.CircleRadius, 0, math.cos(angle) * Settings.CircleRadius)
+            aimPoint = target.Position + offset
+        end
+        local cf = CFrame.new(Camera.CFrame.Position, aimPoint)
         Camera.CFrame = ApplyHuman(cf, Settings.Smoothness)
     end
     ApplyRecoil()
