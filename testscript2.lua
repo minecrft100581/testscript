@@ -34,6 +34,7 @@ local Luna = loadstring(game:HttpGet("https://raw.nebulasoftworks.xyz/luna"))()
 --// =========================
 
 local Settings = {
+    -- Legit
     Aimbot = false,
     AimPart = "Head",
     Smoothness = 0.15,
@@ -43,31 +44,29 @@ local Settings = {
     FOVColor = Color3.fromRGB(255,255,255),
     FOVRainbow = false,
 
+    -- ESP
     ESP = false,
     ESPColor = Color3.fromRGB(255,0,0),
+    ESPRainbow = false,
 
     TeamCheck = false,
-    VisibleCheck = false
-}
+    VisibleCheck = false,
 
---// =========================
---// WINDOW
---// =========================
+    -- Rage
+    Ragebot = false,
+    RageTargetMode = "All",
+    RageCustomName = "",
 
-local Window = Luna:CreateWindow({
-    Name = "Program UI",
-    Subtitle = "Integrated System",
-    KeySystem = false,
-    LoadingEnabled = false
-})
+    RageFOV = 300,
+    RageFOVColor = Color3.fromRGB(255,50,50),
+    RageFOVVisible = true,
 
-local Tabs = {
-    Main = Window:CreateTab({
-        Name = "Main",
-        Icon = "view_in_ar",
-        ImageSource = "Material",
-        ShowTitle = true
-    })
+    AutoHeadshot = true,
+    HeadshotDistance = 250,
+
+    -- Silent Aim
+    SilentAim = false,
+    HitChance = 100, -- %
 }
 
 --// =========================
@@ -175,6 +174,26 @@ Tabs.Main:CreateToggle({
     CurrentValue = false,
     Callback = function(v)
         Settings.VisibleCheck = v
+    end
+})
+
+Tabs.Main:CreateSection("Silent Aim")
+
+Tabs.Main:CreateToggle({
+    Name = "Enable Silent Aim",
+    CurrentValue = false,
+    Callback = function(v)
+        Settings.SilentAim = v
+    end
+})
+
+Tabs.Main:CreateSlider({
+    Name = "Hit Chance %",
+    Range = {0,100},
+    Increment = 1,
+    CurrentValue = 100,
+    Callback = function(v)
+        Settings.HitChance = v
     end
 })
 
@@ -350,3 +369,120 @@ RunService.RenderStepped:Connect(function()
     end
 
 end)
+
+--// ========================
+--// HIT CHANCE
+--===========================
+
+local function RollHitChance()
+    return math.random(0,100) <= Settings.HitChance
+end
+
+-- AUTO HEADSHOT
+
+local function GetBestPart(character)
+
+    local head = character:FindFirstChild("Head")
+    local root = character:FindFirstChild("HumanoidRootPart")
+
+    if not head or not root then return nil end
+
+    local dist = (head.Position - Camera.CFrame.Position).Magnitude
+
+    if Settings.AutoHeadshot then
+        if dist <= Settings.HeadshotDistance then
+            return head
+        else
+            return root
+        end
+    else
+        return character:FindFirstChild(Settings.AimPart)
+    end
+end
+
+-- Silent aim target finder
+
+local function GetSilentTarget()
+
+    local closest = nil
+    local shortest = Settings.FOV
+    local center = GetAimPosition()
+
+    for _,player in ipairs(Players:GetPlayers()) do
+
+        if player == LocalPlayer then continue end
+
+        if Settings.TeamCheck and player.Team == LocalPlayer.Team then
+            continue
+        end
+
+        local char = player.Character
+        if not char then continue end
+
+        local part = GetBestPart(char)
+        if not part then continue end
+
+        if not IsVisible(part) then continue end
+
+        local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
+        if not onScreen then continue end
+
+        local dist = (Vector2.new(screenPos.X,screenPos.Y) - center).Magnitude
+
+        if dist < shortest then
+            shortest = dist
+            closest = part
+        end
+    end
+
+    return closest
+end
+
+--silent aim hook
+
+local Mouse = LocalPlayer:GetMouse()
+
+local OldIndex
+OldIndex = hookmetamethod(game, "__index", function(self, key)
+
+    if self == Mouse and key == "Hit" and Settings.SilentAim then
+
+        local target = GetSilentTarget()
+
+        if target and RollHitChance() then
+            return target.CFrame
+        end
+    end
+
+    return OldIndex(self, key)
+end)
+
+--ragebot aimbot 우선순위
+
+if Settings.Ragebot then
+
+    local target = GetRageTarget()
+
+    if target then
+        Camera.CFrame = CFrame.new(Camera.CFrame.Position, target.Position)
+    end
+
+elseif Settings.Aimbot then
+
+    local target = GetClosestTarget()
+
+    if target then
+        local newCF = CFrame.new(Camera.CFrame.Position, target.Position)
+        Camera.CFrame = Camera.CFrame:Lerp(newCF, Settings.Smoothness)
+    end
+
+end
+
+--ragebot fov circle
+
+local aimPos = GetAimPosition()
+
+RageCircle.Visible = Settings.Ragebot and Settings.RageFOVVisible
+RageCircle.Position = UDim2.fromOffset(aimPos.X, aimPos.Y)
+RageCircle.Size = UDim2.fromOffset(Settings.RageFOV*2, Settings.RageFOV*2)
+RageStroke.Color = Settings.RageFOVColor
