@@ -23,8 +23,8 @@ local Camera = GetCamera()
 --// =========================
 local Luna = loadstring(game:HttpGet("https://raw.nebulasoftworks.xyz/luna"))()
 local Window = Luna:CreateWindow({
-    Name = "Real Cheat Simulator",
-    Subtitle = "99.99% Realism",
+    Name = "Mobile Universal Script",
+    Subtitle = "Mobile Universal Script",
     LogoID = "rbxassetid://7733960981",
     LoadingEnabled = false,
 })
