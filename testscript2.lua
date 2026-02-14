@@ -51,6 +51,7 @@ local Settings = {
     ESPColor = Color3.fromRGB(255,0,0),
     FOVColor = Color3.fromRGB(255,255,255),
     FOVRainbow = false,
+    ESPRainbow = false,
     HitChance = 100,
     AutoHeadshot = true,
     HeadshotDistance = 250,
@@ -122,6 +123,10 @@ Tabs.Visual:CreateToggle({
     Name = "FOV Rainbow",
     Callback = function(v) Settings.FOVRainbow = v end
 })
+Tabs.Visual:CreateToggle({
+    Name = "ESP Rainbow",
+    Callback = function(v) Settings.ESPRainbow = v end
+})
 Tabs.Combat:CreateToggle({
     Name = "Humanized Aim",
     Callback = function(v) Settings.Humanize = v end
@@ -159,6 +164,40 @@ UICorner.CornerRadius = UDim.new(1,0)
 local UIStroke = Instance.new("UIStroke", FOVCircle)
 UIStroke.Thickness = 2
 --// =========================
+--// TARGET HUB GUI
+--// =========================
+local TargetGui = Instance.new("ScreenGui")
+TargetGui.ResetOnSpawn = false
+TargetGui.Parent = CoreGui
+local TargetFrame = Instance.new("Frame")
+TargetFrame.Size = UDim2.new(0, 200, 0, 100)
+TargetFrame.Position = UDim2.new(1, -210, 0, 10)
+TargetFrame.BackgroundColor3 = Color3.new(0,0,0)
+TargetFrame.BackgroundTransparency = 0.5
+TargetFrame.Parent = TargetGui
+TargetFrame.Visible = false
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Parent = TargetFrame
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+local DisplayNameLabel = Instance.new("TextLabel")
+DisplayNameLabel.Size = UDim2.new(1, 0, 0, 30)
+DisplayNameLabel.BackgroundTransparency = 1
+DisplayNameLabel.TextColor3 = Color3.new(1,1,1)
+DisplayNameLabel.Text = "Display: "
+DisplayNameLabel.Parent = TargetFrame
+local UsernameLabel = Instance.new("TextLabel")
+UsernameLabel.Size = UDim2.new(1, 0, 0, 30)
+UsernameLabel.BackgroundTransparency = 1
+UsernameLabel.TextColor3 = Color3.new(1,1,1)
+UsernameLabel.Text = "Username: "
+UsernameLabel.Parent = TargetFrame
+local HealthLabel = Instance.new("TextLabel")
+HealthLabel.Size = UDim2.new(1, 0, 0, 30)
+HealthLabel.BackgroundTransparency = 1
+HealthLabel.TextColor3 = Color3.new(1,1,1)
+HealthLabel.Text = "Health: "
+HealthLabel.Parent = TargetFrame
+--// =========================
 --// AIM POSITION
 --// =========================
 local isMobile = UIS.TouchEnabled and not UIS.MouseEnabled
@@ -183,7 +222,7 @@ local function CreateESP(player, char)
     hl.Parent = char
     ESPContainer[player] = hl
 end
-local function UpdateESP()
+local function UpdateESP(rainbow)
     for _, player in ipairs(Players:GetPlayers()) do
         if player == LocalPlayer then continue end
         local char = player.Character
@@ -194,8 +233,9 @@ local function UpdateESP()
             end
             local hl = ESPContainer[player]
             if hl then
-                hl.FillColor = Settings.ESPColor
-                hl.OutlineColor = Settings.ESPColor
+                local color = Settings.ESPRainbow and rainbow or Settings.ESPColor
+                hl.FillColor = color
+                hl.OutlineColor = color
                 hl.Enabled = true
             end
         else
@@ -301,9 +341,9 @@ end)
 --// MAIN LOOP
 --// =========================
 RunService.RenderStepped:Connect(function()
-    UpdateESP()
     local hue = tick()%5/5
     local rainbow = Color3.fromHSV(hue,1,1)
+    UpdateESP(rainbow)
     UIStroke.Color = Settings.FOVRainbow and rainbow or Settings.FOVColor
     local aimPos = GetAimPosition()
     FOVCircle.Position = UDim2.fromOffset(aimPos.X, aimPos.Y)
@@ -327,6 +367,20 @@ RunService.RenderStepped:Connect(function()
         end
         local cf = CFrame.new(Camera.CFrame.Position, aimPoint)
         Camera.CFrame = ApplyHuman(cf, Settings.Smoothness)
+        -- Update Target Hub
+        local char = target.Parent
+        local player = Players:GetPlayerFromCharacter(char)
+        if player then
+            DisplayNameLabel.Text = "Display: " .. player.DisplayName
+            UsernameLabel.Text = "Username: " .. player.Name
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum then
+                HealthLabel.Text = "Health: " .. math.floor(hum.Health) .. "/" .. hum.MaxHealth
+            end
+            TargetFrame.Visible = true
+        end
+    else
+        TargetFrame.Visible = false
     end
     ApplyRecoil()
 end)
