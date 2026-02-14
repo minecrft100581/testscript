@@ -9,6 +9,29 @@ local UIS = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 
 --// =========================
+--// LOAD LUNA
+--// =========================
+
+local Luna = loadstring(game:HttpGet("https://raw.nebulasoftworks.xyz/luna"))()
+
+local Window = Luna:CreateWindow({
+    Name = "Real Cheat Simulator",
+    Subtitle = "99% Realism",
+    LogoID = "rbxassetid://0",
+    LoadingEnabled = true,
+    LoadingTitle = "Loading...",
+    LoadingSubtitle = "Please wait"
+})
+
+local Tabs = {
+    Main = Window:CreateTab({
+        Name = "Main",
+        Icon = "home"
+    })
+}
+
+
+--// =========================
 --// SAFE CAMERA
 --// =========================
 
